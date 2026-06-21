@@ -1,4 +1,4 @@
-package com.janitha.ghostprotocol;
+package com.example.ghostprotocol;
 
 import org.junit.Test;
 

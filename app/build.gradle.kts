@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "com.janitha.ghostprotocol"
+    namespace = "com.example.ghostprotocol"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.janitha.ghostprotocol"
+        applicationId = "com.example.ghostprotocol"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
