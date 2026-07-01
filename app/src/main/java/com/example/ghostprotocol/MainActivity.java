@@ -34,6 +34,7 @@ public class MainActivity extends AppCompatActivity {
     private Button statusButton;
     private Button restartButton;
     private Button stopButton;
+    private Button focusButton;
     private TextView serviceHealthText;
     private TextView footerCounts;
 
@@ -273,6 +274,21 @@ public class MainActivity extends AppCompatActivity {
         // --- Whitelist ---
         root.addView(navButton("✓  Manage Whitelist", WhitelistActivity.class));
 
+        // --- Focus Mode toggle ---
+        // Inverts the whitelist into an allow-list: reply ONLY to whitelisted
+        // contacts, ignore everyone else.
+        focusButton = new Button(this);
+        focusButton.setAllCaps(false);
+        focusButton.setTextSize(13);
+        focusButton.setTypeface(null, Typeface.BOLD);
+        LinearLayout.LayoutParams focusParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 120);
+        focusParams.setMargins(0, 0, 0, 12);
+        focusButton.setLayoutParams(focusParams);
+        focusButton.setOnClickListener(v -> toggleFocusMode());
+        root.addView(focusButton);
+        updateFocusButton();
+
         // --- Section divider: Monitor ---
         root.addView(sectionDivider("MONITOR"));
 
@@ -326,6 +342,35 @@ public class MainActivity extends AppCompatActivity {
         b.setLayoutParams(params);
         b.setOnClickListener(v -> startActivity(new Intent(this, target)));
         return b;
+    }
+
+    // -------------------------------------------------------------------------
+    // FOCUS MODE — inverse whitelist (reply ONLY to whitelisted contacts)
+    // -------------------------------------------------------------------------
+    private boolean loadFocusMode() {
+        return getSharedPreferences(GhostService.MSG_PREFS, MODE_PRIVATE)
+                .getBoolean(GhostService.KEY_FOCUS_MODE, false);
+    }
+
+    private void toggleFocusMode() {
+        boolean enabled = !loadFocusMode();
+        getSharedPreferences(GhostService.MSG_PREFS, MODE_PRIVATE)
+                .edit().putBoolean(GhostService.KEY_FOCUS_MODE, enabled).apply();
+        updateFocusButton();
+        Log.i("GhostProtocol", "Focus Mode " + (enabled ? "enabled" : "disabled") + ".");
+    }
+
+    private void updateFocusButton() {
+        if (focusButton == null) return;
+        if (loadFocusMode()) {
+            focusButton.setText("🎯  Focus Mode: ON  (reply only to whitelist)");
+            focusButton.setTextColor(Theme.PRIMARY);
+            focusButton.setBackgroundColor(Theme.PRIMARY_BG);
+        } else {
+            focusButton.setText("🎯  Focus Mode: OFF  (reply to everyone)");
+            focusButton.setTextColor(Theme.TEXT_SECONDARY);
+            focusButton.setBackgroundColor(Theme.BUTTON_BG);
+        }
     }
 
     // -------------------------------------------------------------------------

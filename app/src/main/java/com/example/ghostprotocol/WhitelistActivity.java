@@ -92,7 +92,7 @@ public class WhitelistActivity extends AppCompatActivity {
         header.setPadding(0, 0, 0, 8);
 
         TextView subHeader = new TextView(this);
-        subHeader.setText("Contacts listed here are never auto-replied to. Match is exact (case-insensitive) — enter the name exactly as it appears in WhatsApp.");
+        subHeader.setText("Normally, contacts listed here are never auto-replied to. With Focus Mode ON (main screen), this list flips into an allow-list — the protocol replies ONLY to these contacts and ignores everyone else. Match is exact (case-insensitive) — enter the name exactly as it appears in WhatsApp.");
         subHeader.setTextColor(Theme.TEXT_MUTED);
         subHeader.setTextSize(12);
         subHeader.setGravity(Gravity.CENTER);

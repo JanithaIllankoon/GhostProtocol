@@ -100,6 +100,12 @@ public class GhostService extends NotificationListenerService {
 
     static final String MSG_PREFS = "GhostMessages";
 
+    // Focus Mode: when true, the whitelist is inverted into an ALLOW-list —
+    // the protocol only replies to whitelisted contacts and silently ignores
+    // everyone else. When false (default), the whitelist behaves normally
+    // (whitelisted contacts are never auto-replied to).
+    static final String KEY_FOCUS_MODE = "focus_mode";
+
     // =========================================================================
     // IN-MEMORY CACHES — rebuilt on service start and when prefs change.
     // Eliminates per-notification SharedPreferences disk reads.
@@ -111,6 +117,7 @@ public class GhostService extends NotificationListenerService {
     private volatile Set<String>  cachedSentStrings;
     private volatile Pattern      cachedKeywordPattern;
     private volatile Map<String, String> cachedKeywordToReply;  // lowercase kw → reply
+    private volatile boolean cachedFocusMode;
     private volatile boolean cachesDirty = true;
 
     // Timestamp of the last reply sent — used to scope Mirror Shield
@@ -176,6 +183,9 @@ public class GhostService extends NotificationListenerService {
             }
         }
         cachedWhitelist = Collections.unmodifiableList(wl);
+
+        // --- Focus Mode flag ---
+        cachedFocusMode = prefs.getBoolean(KEY_FOCUS_MODE, false);
 
         // --- Keywords → compiled regex + keyword-to-reply map ---
         // Uses \p{L} and \p{Nd} for Unicode-aware word boundaries:
@@ -497,12 +507,28 @@ public class GhostService extends NotificationListenerService {
         // Changed from .contains() to .equalsIgnoreCase() to prevent false
         // positives (e.g. "Alice" no longer accidentally whitelists "Alicia").
         List<String> whitelist = cachedWhitelist;
+        boolean isWhitelisted = false;
         if (whitelist != null) {
             for (String trusted : whitelist) {
                 if (title.equalsIgnoreCase(trusted)) {
-                    Log.d("GhostProtocol", "Whitelisted contact detected — standing down.");
-                    return;
+                    isWhitelisted = true;
+                    break;
                 }
+            }
+        }
+
+        if (cachedFocusMode) {
+            // FOCUS MODE — whitelist is an ALLOW-list. Only reply to the
+            // listed contacts; silently ignore everyone else.
+            if (!isWhitelisted) {
+                Log.d("GhostProtocol", "Focus Mode: non-target contact — standing down.");
+                return;
+            }
+        } else {
+            // NORMAL MODE — whitelisted contacts are never auto-replied to.
+            if (isWhitelisted) {
+                Log.d("GhostProtocol", "Whitelisted contact detected — standing down.");
+                return;
             }
         }
 
