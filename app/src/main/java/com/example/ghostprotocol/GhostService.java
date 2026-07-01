@@ -344,8 +344,22 @@ public class GhostService extends NotificationListenerService {
                 + " names, " + numbers.size() + " numbers");
     }
 
-    private boolean isUnknownContact(String title) {
-        if (title == null || title.isEmpty()) return true;
+    /**
+     * Normalizes a WhatsApp notification title for matching:
+     *   • strips the unread-count suffix — "Name (3 messages)", "Name (2 new messages)"
+     *   • collapses internal whitespace runs and trims
+     * so titles compare cleanly against saved contact names and whitelist entries.
+     */
+    private static String normalizeTitle(String title) {
+        if (title == null) return "";
+        String t = title.replaceAll("\\s*\\(\\d+\\s+(?:new\\s+)?messages?\\)\\s*$", "");
+        return t.replaceAll("\\s+", " ").trim();
+    }
+
+    private boolean isUnknownContact(String rawTitle) {
+        if (rawTitle == null || rawTitle.isEmpty()) return true;
+        String title = normalizeTitle(rawTitle);
+        if (title.isEmpty()) return true;
 
         loadContactsIfStale();
 
@@ -534,14 +548,19 @@ public class GhostService extends NotificationListenerService {
 
         String lowerText = text.toLowerCase();
 
-        // --- WHITELIST GATE — exact case-insensitive match ---
-        // Changed from .contains() to .equalsIgnoreCase() to prevent false
-        // positives (e.g. "Alice" no longer accidentally whitelists "Alicia").
+        // --- WHITELIST GATE — normalized case-insensitive match ---
+        // WhatsApp decorates the title with an unread counter when more than
+        // one message is pending (e.g. "Trevin Motha (3 messages)"), so a raw
+        // equalsIgnoreCase against "Trevin Motha" silently missed and the
+        // whitelist never fired. We strip that suffix and collapse whitespace
+        // before comparing — still an exact match (no substring), so "Alice"
+        // still won't match "Alicia".
+        String matchTitle = normalizeTitle(title);
         List<String> whitelist = cachedWhitelist;
         boolean isWhitelisted = false;
         if (whitelist != null) {
             for (String trusted : whitelist) {
-                if (title.equalsIgnoreCase(trusted)) {
+                if (matchTitle.equalsIgnoreCase(normalizeTitle(trusted))) {
                     isWhitelisted = true;
                     break;
                 }
