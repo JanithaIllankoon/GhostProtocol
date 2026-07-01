@@ -48,9 +48,12 @@ public class GhostService extends NotificationListenerService {
     // Shared RNG — avoids identical seeds when notifications arrive close together
     private static final Random RNG = new Random();
 
-    // FSM timings
-    private static final long WINDOW_MS        = 10 * 60 * 1000L;
-    private static final long SPAM_COOLDOWN_MS = 12 * 60 * 60 * 1000L;
+    // FSM timings — defaults; user-overridable via the UI.
+    // Runtime values are cachedWindowMs / cachedSpamCooldownMs.
+    static final int  DEFAULT_WINDOW_MIN        = 10;   // reply window, minutes
+    static final int  DEFAULT_SPAM_COOLDOWN_HR  = 12;   // spam cooldown, hours
+    static final String KEY_WINDOW_MIN       = "cfg_window_min";
+    static final String KEY_SPAM_COOLDOWN_HR = "cfg_spam_cooldown_hr";
 
     // Shields
     private static final long PHOTOCOPIER_WINDOW_MS = 5 * 60 * 1000L;  // dedup window
@@ -121,6 +124,8 @@ public class GhostService extends NotificationListenerService {
     private volatile Pattern      cachedKeywordPattern;
     private volatile Map<String, String> cachedKeywordToReply;  // lowercase kw → reply
     private volatile boolean cachedFocusMode;
+    private volatile long    cachedWindowMs;
+    private volatile long    cachedSpamCooldownMs;
     private volatile boolean cachesDirty = true;
 
     // Timestamp of the last reply sent — used to scope Mirror Shield
@@ -191,6 +196,12 @@ public class GhostService extends NotificationListenerService {
 
         // --- Focus Mode flag ---
         cachedFocusMode = prefs.getBoolean(KEY_FOCUS_MODE, false);
+
+        // --- FSM timings (clamped to sane minimums) ---
+        int windowMin = Math.max(1, prefs.getInt(KEY_WINDOW_MIN, DEFAULT_WINDOW_MIN));
+        cachedWindowMs = windowMin * 60_000L;
+        int cooldownHr = Math.max(1, prefs.getInt(KEY_SPAM_COOLDOWN_HR, DEFAULT_SPAM_COOLDOWN_HR));
+        cachedSpamCooldownMs = cooldownHr * 60L * 60_000L;
 
         // --- Keywords → compiled regex + keyword-to-reply map ---
         // Uses \p{L} and \p{Nd} for Unicode-aware word boundaries:
@@ -688,7 +699,7 @@ public class GhostService extends NotificationListenerService {
 
                 if (!strangerGreeted) {
                     // FIRST ENCOUNTER EVER with this unknown sender
-                    if (now - windowStart > WINDOW_MS) {
+                    if (now - windowStart > cachedWindowMs) {
                         payload = cachedStrangerMsg != null ? cachedStrangerMsg : STRANGER_MSG;
                         trigger = "stranger";
                         prefs.edit()
@@ -703,7 +714,7 @@ public class GhostService extends NotificationListenerService {
                         if (msgCount >= 2) {
                             long lastSpamTime = prefs.getLong(
                                     "spam_time_" + senderName, 0L);
-                            if (now - lastSpamTime > SPAM_COOLDOWN_MS) {
+                            if (now - lastSpamTime > cachedSpamCooldownMs) {
                                 prefs.edit().putLong(
                                         "spam_time_" + senderName, now).apply();
                                 payload = buildSpamPayload();
@@ -760,7 +771,7 @@ public class GhostService extends NotificationListenerService {
                                           long windowStart, int msgCount) {
         lastFsmTrigger = null;
 
-        if (now - windowStart > WINDOW_MS) {
+        if (now - windowStart > cachedWindowMs) {
             // ---- New 10-minute window — 1st message ----
             String keywordReply = getKeywordReply(text);
             String payload;
@@ -787,7 +798,7 @@ public class GhostService extends NotificationListenerService {
             prefs.edit().putInt("count_" + senderName, msgCount).apply();
             if (msgCount >= 2) {
                 long lastSpamTime = prefs.getLong("spam_time_" + senderName, 0L);
-                if (now - lastSpamTime > SPAM_COOLDOWN_MS) {
+                if (now - lastSpamTime > cachedSpamCooldownMs) {
                     prefs.edit().putLong("spam_time_" + senderName, now).apply();
                     lastFsmTrigger = "spam";
                     return buildSpamPayload();

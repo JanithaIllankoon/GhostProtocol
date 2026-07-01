@@ -106,7 +106,7 @@ public class EditMessagesActivity extends AppCompatActivity {
 
         root.addView(buildSystemCard(
                 "Spam Warning",
-                "Sent once per 12 hrs when someone messages more than once inside a 10-min window.",
+                "Sent when someone messages more than once inside the reply window, no more often than the spam cooldown (both set under TIMING).",
                 KEY_SPAM_MSG,
                 GhostService.DEFAULT_POOL[GhostService.IDX_SPAM_WARNING],
                 Theme.ACCENT_SPAM));
@@ -126,8 +126,28 @@ public class EditMessagesActivity extends AppCompatActivity {
                 Theme.PRIMARY));
 
         root.addView(makeSectionLabel(
+                "TIMING",
+                "Controls how often the protocol repeats itself to the same sender."));
+
+        root.addView(buildTimingCard(
+                "Reply Window",
+                "How long before the same sender can trigger a fresh random auto-reply.",
+                GhostService.KEY_WINDOW_MIN,
+                GhostService.DEFAULT_WINDOW_MIN,
+                "minutes",
+                Theme.ACCENT_CALL));
+
+        root.addView(buildTimingCard(
+                "Spam Cooldown",
+                "Minimum gap between spam warnings sent to the same sender.",
+                GhostService.KEY_SPAM_COOLDOWN_HR,
+                GhostService.DEFAULT_SPAM_COOLDOWN_HR,
+                "hours",
+                Theme.ACCENT_SPAM));
+
+        root.addView(makeSectionLabel(
                 "RANDOM AUTO-REPLIES",
-                "One of these is picked at random for the first message in a new 10-min window."));
+                "One of these is picked at random for the first message in a new reply window."));
 
         listContainer = new LinearLayout(this);
         listContainer.setOrientation(LinearLayout.VERTICAL);
@@ -202,6 +222,98 @@ public class EditMessagesActivity extends AppCompatActivity {
         card.addView(preview);
         card.addView(editBtn);
         return card;
+    }
+
+    // -------------------------------------------------------------------------
+    // Timing cards — numeric config (reply window, spam cooldown)
+    // -------------------------------------------------------------------------
+    private int loadTiming(String key, int defaultVal) {
+        return getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
+                .getInt(key, defaultVal);
+    }
+
+    private View buildTimingCard(String title, String description, String prefKey,
+                                 int defaultVal, String unit, int accentColor) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackgroundColor(Theme.CARD_BG);
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        cardParams.setMargins(0, 0, 0, 14);
+        card.setLayoutParams(cardParams);
+        card.setPadding(24, 20, 24, 16);
+
+        TextView titleView = new TextView(this);
+        titleView.setText(title);
+        titleView.setTextColor(accentColor);
+        titleView.setTextSize(12);
+        titleView.setTypeface(null, Typeface.BOLD);
+        titleView.setPadding(0, 0, 0, 4);
+
+        TextView descView = new TextView(this);
+        descView.setText(description);
+        descView.setTextColor(Theme.TEXT_MUTED);
+        descView.setTextSize(11);
+        descView.setPadding(0, 0, 0, 10);
+
+        TextView value = new TextView(this);
+        value.setText(loadTiming(prefKey, defaultVal) + " " + unit);
+        value.setTextColor(Theme.TEXT_PRIMARY);
+        value.setTextSize(15);
+        value.setTypeface(null, Typeface.BOLD);
+        value.setPadding(0, 0, 0, 14);
+
+        Button editBtn = new Button(this);
+        editBtn.setText("✎  Change");
+        editBtn.setAllCaps(false);
+        editBtn.setTextColor(Theme.WARN);
+        editBtn.setBackgroundColor(Theme.EDIT_BG);
+        editBtn.setTextSize(12);
+        editBtn.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 90));
+        editBtn.setOnClickListener(v ->
+                showTimingDialog(title, prefKey, defaultVal, unit, value));
+
+        card.addView(titleView);
+        card.addView(descView);
+        card.addView(value);
+        card.addView(editBtn);
+        return card;
+    }
+
+    private void showTimingDialog(String title, String prefKey, int defaultVal,
+                                  String unit, TextView valueView) {
+        EditText input = new EditText(this);
+        input.setText(String.valueOf(loadTiming(prefKey, defaultVal)));
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setBackgroundColor(Theme.INPUT_BG);
+        input.setTextColor(Theme.TEXT_PRIMARY);
+        input.setPadding(20, 20, 20, 20);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Edit: " + title)
+                .setMessage("Enter a whole number of " + unit + " (minimum 1).")
+                .setView(input)
+                .setPositiveButton("Save", null)
+                .setNegativeButton("Cancel", null)
+                .create();
+        dialog.show();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String raw = input.getText().toString().trim();
+            int val;
+            try {
+                val = Integer.parseInt(raw);
+            } catch (NumberFormatException e) {
+                showAlert("Invalid", "Please enter a whole number.");
+                return;
+            }
+            if (val < 1) { showAlert("Too Small", "Value must be at least 1 " + unit + "."); return; }
+            getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
+                    .edit().putInt(prefKey, val).apply();
+            valueView.setText(val + " " + unit);
+            dialog.dismiss();
+        });
     }
 
     // -------------------------------------------------------------------------
