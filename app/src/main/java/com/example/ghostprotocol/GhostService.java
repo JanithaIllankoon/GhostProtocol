@@ -73,8 +73,10 @@ public class GhostService extends NotificationListenerService {
     private static final int HISTORY_MAX = 50;
     static final String HISTORY_KEY = "history_json";
 
-    // Generic first-contact reply; users can customize normal replies in the app.
-    private static final String STRANGER_MSG =
+    // Generic first-contact reply sent to senders not in the phone's contacts.
+    // This is only the DEFAULT — users can override it in the app (Edit
+    // Auto-Reply Messages → Stranger Reply). Runtime value is cachedStrangerMsg.
+    static final String STRANGER_MSG =
             "Thanks for your message. This number is not in my contacts, so my reply may be delayed.";
 
     // Start empty so no personal contact names are committed to source control.
@@ -114,6 +116,7 @@ public class GhostService extends NotificationListenerService {
     private volatile String[]     cachedPool;
     private volatile String       cachedSpamMsg;
     private volatile String       cachedCallMsg;
+    private volatile String       cachedStrangerMsg;
     private volatile Set<String>  cachedSentStrings;
     private volatile Pattern      cachedKeywordPattern;
     private volatile Map<String, String> cachedKeywordToReply;  // lowercase kw → reply
@@ -170,6 +173,8 @@ public class GhostService extends NotificationListenerService {
                 DEFAULT_POOL[IDX_SPAM_WARNING]);
         cachedCallMsg = prefs.getString(EditMessagesActivity.KEY_CALL_MSG,
                 DEFAULT_POOL[IDX_CALL_DECLINE]);
+        cachedStrangerMsg = prefs.getString(EditMessagesActivity.KEY_STRANGER_MSG,
+                STRANGER_MSG);
 
         // --- Whitelist ---
         int wlCount = prefs.getInt("whitelist_count", -1);
@@ -221,6 +226,7 @@ public class GhostService extends NotificationListenerService {
         Set<String> sent = new HashSet<>();
         if (cachedSpamMsg != null) sent.add(cachedSpamMsg);
         if (cachedCallMsg != null) sent.add(cachedCallMsg);
+        if (cachedStrangerMsg != null) sent.add(cachedStrangerMsg);
         sent.add(STRANGER_MSG);
         for (String s : cachedPool) { if (s != null) sent.add(s); }
         for (String v : kwMap.values()) { if (v != null) sent.add(v); }
@@ -683,7 +689,7 @@ public class GhostService extends NotificationListenerService {
                 if (!strangerGreeted) {
                     // FIRST ENCOUNTER EVER with this unknown sender
                     if (now - windowStart > WINDOW_MS) {
-                        payload = STRANGER_MSG;
+                        payload = cachedStrangerMsg != null ? cachedStrangerMsg : STRANGER_MSG;
                         trigger = "stranger";
                         prefs.edit()
                                 .putLong("window_" + senderName, now)

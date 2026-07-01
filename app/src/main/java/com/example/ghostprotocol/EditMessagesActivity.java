@@ -25,6 +25,7 @@ public class EditMessagesActivity extends AppCompatActivity {
 
     static final String KEY_SPAM_MSG = "sys_spam_msg";
     static final String KEY_CALL_MSG = "sys_call_msg";
+    static final String KEY_STRANGER_MSG = "sys_stranger_msg";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,9 +70,9 @@ public class EditMessagesActivity extends AppCompatActivity {
     // -------------------------------------------------------------------------
     // Load / Save — system messages
     // -------------------------------------------------------------------------
-    private String loadSystemMsg(String key, int defaultIndex) {
+    private String loadSystemMsg(String key, String defaultMsg) {
         return getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
-                .getString(key, GhostService.DEFAULT_POOL[defaultIndex]);
+                .getString(key, defaultMsg);
     }
 
     private void saveSystemMsg(String key, String value) {
@@ -107,15 +108,22 @@ public class EditMessagesActivity extends AppCompatActivity {
                 "Spam Warning",
                 "Sent once per 12 hrs when someone messages more than once inside a 10-min window.",
                 KEY_SPAM_MSG,
-                GhostService.IDX_SPAM_WARNING,
+                GhostService.DEFAULT_POOL[GhostService.IDX_SPAM_WARNING],
                 Theme.ACCENT_SPAM));
 
         root.addView(buildSystemCard(
                 "Incoming Call Reply",
                 "Sent as a text when someone calls you on WhatsApp. The call still rings normally.",
                 KEY_CALL_MSG,
-                GhostService.IDX_CALL_DECLINE,
+                GhostService.DEFAULT_POOL[GhostService.IDX_CALL_DECLINE],
                 Theme.ACCENT_CALL));
+
+        root.addView(buildSystemCard(
+                "Stranger Reply",
+                "Sent the first time someone who is NOT in your contacts messages you.",
+                KEY_STRANGER_MSG,
+                GhostService.STRANGER_MSG,
+                Theme.PRIMARY));
 
         root.addView(makeSectionLabel(
                 "RANDOM AUTO-REPLIES",
@@ -148,7 +156,7 @@ public class EditMessagesActivity extends AppCompatActivity {
     // System message card
     // -------------------------------------------------------------------------
     private View buildSystemCard(String title, String description,
-                                 String prefKey, int defaultIndex, int accentColor) {
+                                 String prefKey, String defaultMsg, int accentColor) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setBackgroundColor(Theme.CARD_BG);
@@ -173,7 +181,7 @@ public class EditMessagesActivity extends AppCompatActivity {
         descView.setPadding(0, 0, 0, 10);
 
         TextView preview = new TextView(this);
-        preview.setText(loadSystemMsg(prefKey, defaultIndex));
+        preview.setText(loadSystemMsg(prefKey, defaultMsg));
         preview.setTextColor(Theme.TEXT_PRIMARY);
         preview.setTextSize(13);
         preview.setPadding(0, 0, 0, 14);
@@ -187,7 +195,7 @@ public class EditMessagesActivity extends AppCompatActivity {
         editBtn.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 90));
         editBtn.setOnClickListener(v ->
-                showSystemEditDialog(title, prefKey, defaultIndex, preview));
+                showSystemEditDialog(title, prefKey, defaultMsg, preview));
 
         card.addView(titleView);
         card.addView(descView);
@@ -273,9 +281,9 @@ public class EditMessagesActivity extends AppCompatActivity {
     // Dialogs
     // -------------------------------------------------------------------------
     private void showSystemEditDialog(String title, String prefKey,
-                                      int defaultIndex, TextView previewView) {
+                                      String defaultMsg, TextView previewView) {
         EditText input = new EditText(this);
-        input.setText(loadSystemMsg(prefKey, defaultIndex));
+        input.setText(loadSystemMsg(prefKey, defaultMsg));
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         input.setMinLines(3);
         input.setBackgroundColor(Theme.INPUT_BG);
