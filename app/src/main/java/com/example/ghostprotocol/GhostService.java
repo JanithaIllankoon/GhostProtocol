@@ -377,9 +377,19 @@ public class GhostService extends NotificationListenerService {
 
     // =========================================================================
     // FOREGROUND DETECTOR — cached (2s)
-    // queryUsageStats is slow; calling it on every notification caused the
-    // listener thread to back up and Android would silently unbind us.
-    // Now checks both WhatsApp and WhatsApp Business.
+    //
+    // Uses queryEvents (event stream) instead of queryUsageStats. The old
+    // aggregated-stats approach with a 2s INTERVAL_DAILY window was unreliable:
+    // getLastTimeUsed lags, so an actively-open WhatsApp was often NOT detected
+    // and auto-replies fired while the user was chatting.
+    //
+    // We scan the last hour of foreground/background transition events and
+    // track the package of the most recent MOVE_TO_FOREGROUND that has no
+    // later MOVE_TO_BACKGROUND — i.e. the app currently on screen. This stays
+    // correct even when WhatsApp has been open for a while with no new events.
+    //
+    // Requires PACKAGE_USAGE_STATS (Usage Access). If it isn't granted,
+    // queryEvents yields nothing and this returns false (fail-open).
     // =========================================================================
     @android.annotation.SuppressLint("MissingPermission")
     private boolean isWhatsAppInForeground() {
@@ -391,20 +401,24 @@ public class GhostService extends NotificationListenerService {
         try {
             UsageStatsManager usm = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
             if (usm != null) {
-                List<UsageStats> appList = usm.queryUsageStats(
-                        UsageStatsManager.INTERVAL_DAILY, now - 2_000, now);
-                if (appList != null && !appList.isEmpty()) {
-                    UsageStats latest = null;
-                    for (UsageStats s : appList) {
-                        if (latest == null || s.getLastTimeUsed() > latest.getLastTimeUsed())
-                            latest = s;
-                    }
-                    if (latest != null) {
-                        String pkg = latest.getPackageName();
-                        if (TARGET_PACKAGE.equals(pkg) || TARGET_PACKAGE_BIZ.equals(pkg)) {
-                            result = true;
+                android.app.usage.UsageEvents events =
+                        usm.queryEvents(now - 60 * 60 * 1000L, now);
+                android.app.usage.UsageEvents.Event event =
+                        new android.app.usage.UsageEvents.Event();
+                String foregroundPkg = null;
+                while (events.hasNextEvent()) {
+                    events.getNextEvent(event);
+                    int type = event.getEventType();
+                    if (type == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                        foregroundPkg = event.getPackageName();
+                    } else if (type == android.app.usage.UsageEvents.Event.MOVE_TO_BACKGROUND) {
+                        if (event.getPackageName().equals(foregroundPkg)) {
+                            foregroundPkg = null;
                         }
                     }
+                }
+                if (TARGET_PACKAGE.equals(foregroundPkg) || TARGET_PACKAGE_BIZ.equals(foregroundPkg)) {
+                    result = true;
                 }
             }
         } catch (Exception e) {

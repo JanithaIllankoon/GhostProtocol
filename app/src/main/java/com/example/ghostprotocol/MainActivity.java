@@ -2,6 +2,7 @@ package com.example.ghostprotocol;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.app.AppOpsManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -13,6 +14,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Process;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
@@ -127,6 +129,51 @@ public class MainActivity extends AppCompatActivity {
         updateStatus();
         updateFooterCounts();
         healthPoller.post(healthCheck);
+
+        // 6. USAGE ACCESS — required to detect when WhatsApp is open so the
+        //    protocol can stand down. Without it, replies fire even while the
+        //    user is actively chatting. Prompt if not yet granted.
+        maybePromptUsageAccess();
+    }
+
+    // -------------------------------------------------------------------------
+    // USAGE ACCESS — needed for foreground detection (stand down while chatting)
+    // -------------------------------------------------------------------------
+    private boolean hasUsageAccess() {
+        try {
+            AppOpsManager appOps = (AppOpsManager) getSystemService(Context.APP_OPS_SERVICE);
+            if (appOps == null) return false;
+            int mode;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                mode = appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
+                        Process.myUid(), getPackageName());
+            } else {
+                mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
+                        Process.myUid(), getPackageName());
+            }
+            return mode == AppOpsManager.MODE_ALLOWED;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void maybePromptUsageAccess() {
+        if (hasUsageAccess()) return;
+        new AlertDialog.Builder(this)
+                .setTitle("Usage Access Needed")
+                .setMessage("Ghost Protocol needs Usage Access to detect when WhatsApp is open, "
+                        + "so it can stand down and NOT auto-reply while you're actively chatting.\n\n"
+                        + "Without it, auto-replies may be sent even while you have WhatsApp open.\n\n"
+                        + "On the next screen: find Ghost Protocol and turn on \"Permit usage access\".")
+                .setPositiveButton("Grant", (d, w) -> {
+                    try {
+                        startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+                    } catch (Exception e) {
+                        startActivity(new Intent(Settings.ACTION_SETTINGS));
+                    }
+                })
+                .setNegativeButton("Later", null)
+                .show();
     }
 
     /**
