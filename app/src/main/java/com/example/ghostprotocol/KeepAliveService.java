@@ -4,11 +4,16 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.ComponentName;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.PixelFormat;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.provider.Settings;
+import android.service.notification.NotificationListenerService;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -31,6 +36,62 @@ public class KeepAliveService extends Service {
     private WindowManager windowManager;
     private View overlayView;
 
+    // -------------------------------------------------------------------------
+    // LISTENER WATCHDOG
+    //
+    // On aggressive OEM ROMs the NotificationListenerService binding gets
+    // silently severed after many hours — onListenerDisconnected() is not
+    // reliably called, so requestRebind() from there never fires. The symptom
+    // is exactly what was reported: the app keeps "running" (this anchor stays
+    // alive) but stops auto-replying until a manual restart, and previously
+    // queued notifications sometimes flush late once the binding recovers.
+    //
+    // This watchdog independently pokes the binding on a timer. requestRebind()
+    // is a safe no-op when the listener is already healthy, and forces a fresh
+    // bind when it has been dropped. If the heartbeat has been stale for a long
+    // stretch, we also hard-toggle the component to recover a wedged binding.
+    // -------------------------------------------------------------------------
+    private static final long WATCHDOG_INTERVAL_MS = 10 * 60 * 1000L; // poke every 10 min
+    private static final long HEARTBEAT_STALE_MS   = 30 * 60 * 1000L; // hard-recover after 30 min silent
+
+    private final Handler watchdog = new Handler(Looper.getMainLooper());
+    private final Runnable watchdogTask = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                ComponentName ghost = new ComponentName(
+                        KeepAliveService.this, GhostService.class);
+                long silentFor = System.currentTimeMillis()
+                        - GhostService.lastListenerHeartbeatMs;
+
+                if (GhostService.lastListenerHeartbeatMs > 0
+                        && silentFor > HEARTBEAT_STALE_MS) {
+                    // Binding looks wedged — force the OS to tear it down and
+                    // rebind by toggling the component off then on.
+                    Log.w("GhostProtocol", "Watchdog: listener silent for "
+                            + (silentFor / 60000) + " min — forcing rebind.");
+                    getPackageManager().setComponentEnabledSetting(ghost,
+                            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                            PackageManager.DONT_KILL_APP);
+                    watchdog.postDelayed(() -> {
+                        getPackageManager().setComponentEnabledSetting(ghost,
+                                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                                PackageManager.DONT_KILL_APP);
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            NotificationListenerService.requestRebind(ghost);
+                        }
+                    }, 800);
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    // Routine nudge — recovers a silently-unbound listener.
+                    NotificationListenerService.requestRebind(ghost);
+                }
+            } catch (Exception e) {
+                Log.e("GhostProtocol", "Watchdog rebind failed: " + e.getMessage());
+            }
+            watchdog.postDelayed(this, WATCHDOG_INTERVAL_MS);
+        }
+    };
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -40,6 +101,9 @@ public class KeepAliveService extends Service {
 
         // 2. Then, create the Invisible Overlay (The Shield)
         addInvisibleOverlay();
+
+        // 3. Start the listener watchdog (self-heals a dropped notification bind)
+        watchdog.postDelayed(watchdogTask, WATCHDOG_INTERVAL_MS);
     }
 
     @Override
@@ -144,6 +208,7 @@ public class KeepAliveService extends Service {
     public void onDestroy() {
         super.onDestroy();
         running = false;
+        watchdog.removeCallbacks(watchdogTask);
         removeOverlay();
     }
 }

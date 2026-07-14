@@ -48,6 +48,13 @@ public class GhostService extends NotificationListenerService {
     // Shared RNG — avoids identical seeds when notifications arrive close together
     private static final Random RNG = new Random();
 
+    // Liveness heartbeat — timestamp of the last time the listener was confirmed
+    // alive (bind or notification event). KeepAliveService's watchdog reads this
+    // to decide whether the notification binding has silently died (the cause of
+    // the app "falling back" after many hours) and needs a forced rebind.
+    static volatile long lastListenerHeartbeatMs = 0L;
+    static void beat() { lastListenerHeartbeatMs = System.currentTimeMillis(); }
+
     // FSM timings — defaults; user-overridable via the UI.
     // Runtime values are cachedWindowMs / cachedSpamCooldownMs.
     static final int  DEFAULT_WINDOW_MIN        = 10;   // reply window, minutes
@@ -144,6 +151,7 @@ public class GhostService extends NotificationListenerService {
     @Override
     public void onListenerConnected() {
         super.onListenerConnected();
+        beat();
         getSharedPreferences(MSG_PREFS, MODE_PRIVATE)
                 .registerOnSharedPreferenceChangeListener(prefListener);
         // Warm up caches and contacts on a background thread
@@ -356,10 +364,33 @@ public class GhostService extends NotificationListenerService {
         return t.replaceAll("\\s+", " ").trim();
     }
 
+    /**
+     * True if the title is a raw phone number rather than a name — WhatsApp only
+     * renders the number when it has no saved name for the sender, so this alone
+     * is a reliable stranger signal, independent of READ_CONTACTS.
+     *
+     * Accepts international ("+94 77 123 4567", "+94771234567") and local
+     * ("0771234567") forms: strip separators, drop a single leading '+', and
+     * require the remainder to be all digits with a plausible length.
+     */
+    private static boolean looksLikePhoneNumber(String title) {
+        if (title == null) return false;
+        String stripped = title.replaceAll("[\\s()\\-.]", "");
+        if (stripped.startsWith("+")) stripped = stripped.substring(1);
+        if (stripped.length() < 7) return false;
+        return stripped.matches("\\d+");
+    }
+
     private boolean isUnknownContact(String rawTitle) {
         if (rawTitle == null || rawTitle.isEmpty()) return true;
         String title = normalizeTitle(rawTitle);
         if (title.isEmpty()) return true;
+
+        // OR-gate: a phone-number-format title (e.g. "+94 77 123 4567") means
+        // WhatsApp has no saved name for this sender. Treat as stranger outright,
+        // even if READ_CONTACTS is denied or the number happens to be saved —
+        // either signal (number format OR not-in-contacts) fires the greeting.
+        if (looksLikePhoneNumber(title)) return true;
 
         loadContactsIfStale();
 
@@ -524,6 +555,7 @@ public class GhostService extends NotificationListenerService {
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
 
+        beat(); // listener is alive and delivering events
         if (sbn == null) return;
         String pkg = sbn.getPackageName();
         if (!TARGET_PACKAGE.equals(pkg) && !TARGET_PACKAGE_BIZ.equals(pkg)) return;
