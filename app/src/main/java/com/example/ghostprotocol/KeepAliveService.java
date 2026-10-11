@@ -14,6 +14,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.provider.Settings;
 import android.service.notification.NotificationListenerService;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -46,13 +47,15 @@ public class KeepAliveService extends Service {
     // alive) but stops auto-replying until a manual restart, and previously
     // queued notifications sometimes flush late once the binding recovers.
     //
-    // This watchdog independently pokes the binding on a timer. requestRebind()
-    // is a safe no-op when the listener is already healthy, and forces a fresh
-    // bind when it has been dropped. If the heartbeat has been stale for a long
-    // stretch, we also hard-toggle the component to recover a wedged binding.
+    // This watchdog independently checks the binding on a timer. It probes the
+    // listener directly (GhostService.isBindingAlive) instead of timing how
+    // long since the last notification — a quiet phone overnight used to look
+    // "dead" and got its listener restarted every half hour for no reason.
+    //   • probe OK       → requestRebind() as a harmless nudge (no-op when bound)
+    //   • probe fails    → hard-toggle the component to recover a wedged binding
+    // Nothing is forced while notification access is turned off in Settings.
     // -------------------------------------------------------------------------
-    private static final long WATCHDOG_INTERVAL_MS = 10 * 60 * 1000L; // poke every 10 min
-    private static final long HEARTBEAT_STALE_MS   = 30 * 60 * 1000L; // hard-recover after 30 min silent
+    private static final long WATCHDOG_INTERVAL_MS = 10 * 60 * 1000L; // check every 10 min
 
     private final Handler watchdog = new Handler(Looper.getMainLooper());
     private final Runnable watchdogTask = new Runnable() {
@@ -61,15 +64,11 @@ public class KeepAliveService extends Service {
             try {
                 ComponentName ghost = new ComponentName(
                         KeepAliveService.this, GhostService.class);
-                long silentFor = System.currentTimeMillis()
-                        - GhostService.lastListenerHeartbeatMs;
 
-                if (GhostService.lastListenerHeartbeatMs > 0
-                        && silentFor > HEARTBEAT_STALE_MS) {
+                if (hasNotificationAccess() && !GhostService.isBindingAlive()) {
                     // Binding looks wedged — force the OS to tear it down and
                     // rebind by toggling the component off then on.
-                    Log.w("GhostProtocol", "Watchdog: listener silent for "
-                            + (silentFor / 60000) + " min — forcing rebind.");
+                    Log.w("GhostProtocol", "Watchdog: listener binding is dead — forcing rebind.");
                     getPackageManager().setComponentEnabledSetting(ghost,
                             PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                             PackageManager.DONT_KILL_APP);
@@ -91,6 +90,18 @@ public class KeepAliveService extends Service {
             watchdog.postDelayed(this, WATCHDOG_INTERVAL_MS);
         }
     };
+
+    /** True if the user has granted Ghost Protocol notification access. */
+    private boolean hasNotificationAccess() {
+        String flat = Settings.Secure.getString(
+                getContentResolver(), "enabled_notification_listeners");
+        if (TextUtils.isEmpty(flat)) return false;
+        for (String name : flat.split(":")) {
+            ComponentName cn = ComponentName.unflattenFromString(name);
+            if (cn != null && getPackageName().equals(cn.getPackageName())) return true;
+        }
+        return false;
+    }
 
     @Override
     public void onCreate() {

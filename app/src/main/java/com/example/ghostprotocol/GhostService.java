@@ -48,12 +48,44 @@ public class GhostService extends NotificationListenerService {
     // Shared RNG — avoids identical seeds when notifications arrive close together
     private static final Random RNG = new Random();
 
-    // Liveness heartbeat — timestamp of the last time the listener was confirmed
-    // alive (bind or notification event). KeepAliveService's watchdog reads this
-    // to decide whether the notification binding has silently died (the cause of
-    // the app "falling back" after many hours) and needs a forced rebind.
-    static volatile long lastListenerHeartbeatMs = 0L;
-    static void beat() { lastListenerHeartbeatMs = System.currentTimeMillis(); }
+    // Live instance, set while the system has us bound. KeepAliveService's
+    // watchdog probes it to decide whether the notification binding has
+    // silently died (the cause of the app "falling back" after many hours).
+    // Probing — rather than timing how long since the last notification —
+    // means a quiet phone (e.g. overnight) is not mistaken for a dead one.
+    private static volatile GhostService instance;
+
+    /**
+     * True if the system still accepts calls from this listener. A severed
+     * binding either leaves no instance, returns null, or throws.
+     */
+    static boolean isBindingAlive() {
+        GhostService s = instance;
+        if (s == null) return false;
+        try {
+            return s.getActiveNotifications() != null;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // Per-sender state in GhostPrefs (window, counters, dedup) is only kept
+    // while a sender stays active. A sender silent for longer than this has
+    // all of their keys dropped and starts fresh next time they message.
+    static final long SENDER_STATE_MAX_AGE_MS = 30L * 24 * 60 * 60 * 1000;
+    private static final long PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000L;
+    private static final String KEY_LAST_PRUNE = "last_prune_at";
+
+    // Every per-sender key is one of these prefixes + the sender's title.
+    // Longer prefixes first so "last_text_time_" isn't read as "last_text_".
+    static final String[] SENDER_KEY_PREFIXES = {
+            "stranger_greeted_", "last_text_time_", "last_text_",
+            "last_seen_", "spam_time_", "window_", "count_"
+    };
+    // Prefixes whose values are timestamps of the sender's activity.
+    private static final String[] SENDER_TIME_PREFIXES = {
+            "last_text_time_", "last_seen_", "spam_time_", "window_"
+    };
 
     // FSM timings — defaults; user-overridable via the UI.
     // Runtime values are cachedWindowMs / cachedSpamCooldownMs.
@@ -138,6 +170,9 @@ public class GhostService extends NotificationListenerService {
     // Timestamp of the last reply sent — used to scope Mirror Shield
     private long lastReplyAtMs = 0L;
 
+    // In-memory throttle for the daily sender-state sweep
+    private volatile long lastPruneCheckMs = 0L;
+
     // Tracks the trigger type for the last resolveKnownSenderFSM call
     private String lastFsmTrigger;
 
@@ -151,13 +186,14 @@ public class GhostService extends NotificationListenerService {
     @Override
     public void onListenerConnected() {
         super.onListenerConnected();
-        beat();
+        instance = this;
         getSharedPreferences(MSG_PREFS, MODE_PRIVATE)
                 .registerOnSharedPreferenceChangeListener(prefListener);
         // Warm up caches and contacts on a background thread
         new Thread(() -> {
             reloadCaches();
             loadContactsIfStale();
+            pruneSenderStateIfDue();
         }).start();
         Log.i("GhostProtocol", "Listener connected — caches warming up.");
     }
@@ -550,18 +586,78 @@ public class GhostService extends NotificationListenerService {
     }
 
     // =========================================================================
+    // SENDER STATE EXPIRY — drops everything stored about a sender once they
+    // have been silent for SENDER_STATE_MAX_AGE_MS, so GhostPrefs doesn't grow
+    // with every person who has ever messaged. Runs at most once a day.
+    // =========================================================================
+    private synchronized void pruneSenderStateIfDue() {
+        try {
+            SharedPreferences prefs = getSharedPreferences("GhostPrefs", Context.MODE_PRIVATE);
+            long now = System.currentTimeMillis();
+            lastPruneCheckMs = now;
+            if (now - prefs.getLong(KEY_LAST_PRUNE, 0L) < PRUNE_INTERVAL_MS) return;
+
+            Set<String> expired = findExpiredSenders(prefs.getAll(), now, SENDER_STATE_MAX_AGE_MS);
+            SharedPreferences.Editor editor = prefs.edit().putLong(KEY_LAST_PRUNE, now);
+            for (String sender : expired) {
+                for (String prefix : SENDER_KEY_PREFIXES) editor.remove(prefix + sender);
+            }
+            editor.apply();
+            if (!expired.isEmpty()) {
+                Log.i("GhostProtocol", "Expired stored state for " + expired.size() + " sender(s).");
+            }
+        } catch (Exception e) {
+            Log.e("GhostProtocol", "Sender state prune failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Returns the senders whose most recent activity timestamp is older than
+     * {@code maxAgeMs}. Senders with keys but no timestamp at all (leftovers
+     * from older versions) are treated as expired.
+     */
+    static Set<String> findExpiredSenders(Map<String, ?> all, long now, long maxAgeMs) {
+        Map<String, Long> lastActivity = new HashMap<>();
+        for (Map.Entry<String, ?> e : all.entrySet()) {
+            String key = e.getKey();
+            for (String prefix : SENDER_KEY_PREFIXES) {
+                if (!key.startsWith(prefix)) continue;
+                String sender = key.substring(prefix.length());
+                long seen = lastActivity.containsKey(sender) ? lastActivity.get(sender) : 0L;
+                for (String timePrefix : SENDER_TIME_PREFIXES) {
+                    if (prefix.equals(timePrefix) && e.getValue() instanceof Long) {
+                        seen = Math.max(seen, (Long) e.getValue());
+                    }
+                }
+                lastActivity.put(sender, seen);
+                break;
+            }
+        }
+        Set<String> expired = new HashSet<>();
+        for (Map.Entry<String, Long> e : lastActivity.entrySet()) {
+            if (now - e.getValue() > maxAgeMs) expired.add(e.getKey());
+        }
+        return expired;
+    }
+
+    // =========================================================================
     // NOTIFICATION ENTRY POINT
     // =========================================================================
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
 
-        beat(); // listener is alive and delivering events
         if (sbn == null) return;
         String pkg = sbn.getPackageName();
         if (!TARGET_PACKAGE.equals(pkg) && !TARGET_PACKAGE_BIZ.equals(pkg)) return;
 
         // Ensure in-memory caches are loaded
         ensureCachesLoaded();
+
+        // Daily sweep of expired per-sender state (cheap check, async work)
+        if (System.currentTimeMillis() - lastPruneCheckMs > PRUNE_INTERVAL_MS) {
+            lastPruneCheckMs = System.currentTimeMillis();
+            new Thread(this::pruneSenderStateIfDue).start();
+        }
 
         Notification notification = sbn.getNotification();
         if (notification == null || notification.extras == null) return;
@@ -733,12 +829,15 @@ public class GhostService extends NotificationListenerService {
             }
 
             // --- PHOTOCOPIER SHIELD (text only, 5-minute expiry) ---
+            // Stores a fingerprint of the text rather than the message itself,
+            // so message contents are never written to disk.
             if (!isMedia) {
-                if (text.equals(lastText) && (now - lastTextTime < PHOTOCOPIER_WINDOW_MS)) {
+                String fingerprint = Integer.toHexString(text.hashCode());
+                if (fingerprint.equals(lastText) && (now - lastTextTime < PHOTOCOPIER_WINDOW_MS)) {
                     return;
                 }
                 prefs.edit()
-                        .putString("last_text_" + senderName, text)
+                        .putString("last_text_" + senderName, fingerprint)
                         .putLong("last_text_time_" + senderName, now)
                         .apply();
             }
@@ -898,8 +997,15 @@ public class GhostService extends NotificationListenerService {
     @Override
     public void onListenerDisconnected() {
         super.onListenerDisconnected();
+        if (instance == this) instance = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             requestRebind(new ComponentName(this, GhostService.class));
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        if (instance == this) instance = null;
+        super.onDestroy();
     }
 }

@@ -403,4 +403,62 @@ public class GhostLogicTest {
         boolean found = savedNumbers.contains(titleDigits);
         assertTrue("Short number should match exactly", found);
     }
+
+    // =========================================================================
+    // 8. SENDER STATE EXPIRY — GhostService.findExpiredSenders (30-day rule)
+    // =========================================================================
+
+    private static final long DAY = 24 * 60 * 60 * 1000L;
+    private static final long NOW = 1_800_000_000_000L;
+
+    @Test
+    public void expiry_recentSender_isKept() {
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("last_seen_Alice", NOW - 2 * DAY);
+        prefs.put("count_Alice", 3);
+        prefs.put("last_text_Alice", "1a2b3c");
+        assertTrue(GhostService.findExpiredSenders(prefs, NOW, 30 * DAY).isEmpty());
+    }
+
+    @Test
+    public void expiry_silentFor31Days_isExpired() {
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("last_seen_Bob", NOW - 31 * DAY);
+        prefs.put("window_Bob", NOW - 31 * DAY);
+        prefs.put("stranger_greeted_Bob", true);
+        assertEquals(Set.of("Bob"), GhostService.findExpiredSenders(prefs, NOW, 30 * DAY));
+    }
+
+    @Test
+    public void expiry_usesMostRecentTimestamp() {
+        // Old window, but seen yesterday → still active
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("window_Carol", NOW - 90 * DAY);
+        prefs.put("last_seen_Carol", NOW - DAY);
+        assertTrue(GhostService.findExpiredSenders(prefs, NOW, 30 * DAY).isEmpty());
+    }
+
+    @Test
+    public void expiry_lastTextTimePrefix_notConfusedWithLastText() {
+        // "last_text_time_Dan" must be attributed to "Dan", not "time_Dan"
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("last_text_time_Dan", NOW - DAY);
+        prefs.put("last_text_Dan", "ff00");
+        assertTrue(GhostService.findExpiredSenders(prefs, NOW, 30 * DAY).isEmpty());
+    }
+
+    @Test
+    public void expiry_senderWithNoTimestamps_isExpired() {
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("count_Eve", 1);
+        assertEquals(Set.of("Eve"), GhostService.findExpiredSenders(prefs, NOW, 30 * DAY));
+    }
+
+    @Test
+    public void expiry_nonSenderKeys_areIgnored() {
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("manually_stopped", false);
+        prefs.put("last_prune_at", NOW - 100 * DAY);
+        assertTrue(GhostService.findExpiredSenders(prefs, NOW, 30 * DAY).isEmpty());
+    }
 }
