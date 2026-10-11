@@ -1,26 +1,21 @@
 package com.example.ghostprotocol;
 
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.graphics.Typeface;
 import android.os.Bundle;
-import android.text.InputType;
-import android.view.Gravity;
-import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class KeywordRulesActivity extends AppCompatActivity {
 
-    private LinearLayout listContainer;
+    private LinearLayout listCard;
 
     private final List<String> keywords = new ArrayList<>();
     private final List<String> replies  = new ArrayList<>();
@@ -67,230 +62,78 @@ public class KeywordRulesActivity extends AppCompatActivity {
     // UI
     // -------------------------------------------------------------------------
     private void buildUI() {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(Theme.BG);
+        LinearLayout column = Ui.screen(this, "Keyword replies",
+                "When a message contains one of your words, send a specific reply instead.", true);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(40, 50, 40, 50);
-
-        TextView header = new TextView(this);
-        header.setText("Keyword Rules");
-        header.setTextColor(Theme.PRIMARY);
-        header.setTextSize(20);
-        header.setTypeface(null, Typeface.BOLD);
-        header.setGravity(Gravity.CENTER);
-        header.setPadding(0, 0, 0, 8);
-
-        TextView subHeader = new TextView(this);
-        subHeader.setText("For saved contacts only: if an incoming message contains a keyword, the paired reply is sent immediately — bypassing the normal auto-reply logic. Unknown senders always get the stranger message instead.");
-        subHeader.setTextColor(Theme.TEXT_MUTED);
-        subHeader.setTextSize(12);
-        subHeader.setGravity(Gravity.CENTER);
-        subHeader.setPadding(0, 0, 0, 30);
-
-        listContainer = new LinearLayout(this);
-        listContainer.setOrientation(LinearLayout.VERTICAL);
-
-        Button addBtn = new Button(this);
-        addBtn.setText("＋  ADD KEYWORD RULE");
-        addBtn.setAllCaps(false);
-        addBtn.setTextColor(Theme.PRIMARY);
-        addBtn.setBackgroundColor(Theme.PRIMARY_BG);
-        addBtn.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 120);
-        addParams.setMargins(0, 20, 0, 0);
-        addBtn.setLayoutParams(addParams);
-        addBtn.setOnClickListener(v -> showRuleDialog(-1, "", ""));
-
-        root.addView(header);
-        root.addView(subHeader);
-        root.addView(listContainer);
-        root.addView(addBtn);
-        scroll.addView(root);
-        setContentView(scroll);
+        column.addView(Ui.sectionLabel(this, "Rules"));
+        listCard = Ui.card(this);
+        column.addView(listCard);
+        column.addView(Ui.hint(this,
+                "Only used for people in your phone's contacts. Unknown numbers always get "
+                        + "the unknown-number reply."));
 
         rebuildList();
     }
 
     private void rebuildList() {
-        listContainer.removeAllViews();
+        listCard.removeAllViews();
 
         if (keywords.isEmpty()) {
-            TextView empty = new TextView(this);
-            empty.setText("No keyword rules yet.\nTap the button below to add one.");
-            empty.setTextColor(Theme.TEXT_MUTED);
-            empty.setTextSize(13);
-            empty.setGravity(Gravity.CENTER);
-            empty.setPadding(0, 20, 0, 20);
-            listContainer.addView(empty);
-            return;
+            Ui.addRow(listCard, Ui.emptyRow(this,
+                    "No keyword replies yet.\nFor example: reply \"Happy New Year!\" "
+                            + "to anyone who says \"new year\"."));
         }
 
         for (int i = 0; i < keywords.size(); i++) {
-            listContainer.addView(buildRuleCard(i));
+            final int index = i;
+            Ui.addRow(listCard, Ui.row(this, formatKeywords(keywords.get(i)), replies.get(i),
+                    null, 2, v -> showRuleDialog(index, keywords.get(index), replies.get(index))));
         }
+
+        Ui.addRow(listCard, Ui.addRowButton(this, "Add keyword reply",
+                v -> showRuleDialog(-1, "", "")));
     }
 
-    private View buildRuleCard(final int index) {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackgroundColor(Theme.CARD_BG);
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        cardParams.setMargins(0, 0, 0, 14);
-        card.setLayoutParams(cardParams);
-        card.setPadding(24, 20, 24, 16);
-
-        TextView ifLabel = new TextView(this);
-        ifLabel.setText("IF ANY OF THESE KEYWORDS ARE RECEIVED");
-        ifLabel.setTextColor(Theme.TEXT_TERTIARY);
-        ifLabel.setTextSize(10);
-        ifLabel.setTypeface(null, Typeface.BOLD);
-        ifLabel.setPadding(0, 0, 0, 8);
-
-        LinearLayout chipsRow = new LinearLayout(this);
-        chipsRow.setOrientation(LinearLayout.HORIZONTAL);
-        chipsRow.setPadding(0, 0, 0, 10);
-        String[] kwParts = keywords.get(index).split(",");
-        for (String kw : kwParts) {
+    /** "new year,HNY" → "“new year”, “HNY”" */
+    private static String formatKeywords(String raw) {
+        StringBuilder sb = new StringBuilder();
+        for (String kw : raw.split(",")) {
             String trimmed = kw.trim();
             if (trimmed.isEmpty()) continue;
-            TextView chip = new TextView(this);
-            chip.setText("\"" + trimmed + "\"");
-            chip.setTextColor(Theme.ACCENT_CALL);
-            chip.setTextSize(13);
-            chip.setTypeface(null, Typeface.BOLD);
-            LinearLayout.LayoutParams chipParams = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT);
-            chipParams.setMargins(0, 0, 14, 0);
-            chip.setLayoutParams(chipParams);
-            chipsRow.addView(chip);
+            if (sb.length() > 0) sb.append(", ");
+            sb.append('“').append(trimmed).append('”');
         }
-
-        TextView sendLabel = new TextView(this);
-        sendLabel.setText("↓  SEND THIS");
-        sendLabel.setTextColor(Theme.TEXT_MUTED);
-        sendLabel.setTextSize(10);
-        sendLabel.setTypeface(null, Typeface.BOLD);
-        sendLabel.setPadding(0, 0, 0, 6);
-
-        TextView replyPreview = new TextView(this);
-        String replyText = replies.get(index);
-        replyPreview.setText(replyText.length() > 80 ? replyText.substring(0, 80) + "…" : replyText);
-        replyPreview.setTextColor(Theme.TEXT_PRIMARY);
-        replyPreview.setTextSize(13);
-        replyPreview.setPadding(0, 0, 0, 14);
-
-        LinearLayout btnRow = new LinearLayout(this);
-        btnRow.setOrientation(LinearLayout.HORIZONTAL);
-
-        Button editBtn = new Button(this);
-        editBtn.setText("✎  Edit");
-        editBtn.setAllCaps(false);
-        editBtn.setTextColor(Theme.WARN);
-        editBtn.setBackgroundColor(Theme.EDIT_BG);
-        editBtn.setTextSize(12);
-        LinearLayout.LayoutParams editParams = new LinearLayout.LayoutParams(0, 90, 1f);
-        editParams.setMargins(0, 0, 8, 0);
-        editBtn.setLayoutParams(editParams);
-        editBtn.setOnClickListener(v -> showRuleDialog(index, keywords.get(index), replies.get(index)));
-
-        Button deleteBtn = new Button(this);
-        deleteBtn.setText("✕  Delete");
-        deleteBtn.setAllCaps(false);
-        deleteBtn.setTextColor(Theme.DANGER);
-        deleteBtn.setBackgroundColor(Theme.DELETE_BG);
-        deleteBtn.setTextSize(12);
-        deleteBtn.setLayoutParams(new LinearLayout.LayoutParams(0, 90, 1f));
-        deleteBtn.setOnClickListener(v -> {
-            keywords.remove(index);
-            replies.remove(index);
-            saveRules();
-            rebuildList();
-        });
-
-        btnRow.addView(editBtn);
-        btnRow.addView(deleteBtn);
-
-        card.addView(ifLabel);
-        card.addView(chipsRow);
-        card.addView(sendLabel);
-        card.addView(replyPreview);
-        card.addView(btnRow);
-        return card;
+        return sb.toString();
     }
 
     // -------------------------------------------------------------------------
     // Add / Edit dialog
     // -------------------------------------------------------------------------
     private void showRuleDialog(final int index, String currentKeyword, String currentReply) {
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(50, 20, 50, 10);
-        layout.setBackgroundColor(Theme.CARD_BG);
+        EditText kwInput = Ui.input(this, currentKeyword, "e.g.  new year, hny", false);
+        EditText replyInput = Ui.input(this, currentReply, "e.g.  Happy New Year! 🎉", true);
 
-        TextView kwLabel = new TextView(this);
-        kwLabel.setText("Keywords — separate multiple with a comma");
-        kwLabel.setTextColor(Theme.TEXT_MUTED);
-        kwLabel.setTextSize(11);
-        kwLabel.setPadding(0, 0, 0, 6);
-
-        EditText kwInput = new EditText(this);
-        kwInput.setText(currentKeyword);
-        kwInput.setHint("e.g.  New Year, happy new year, HNY");
-        kwInput.setHintTextColor(Theme.TEXT_DK);
-        kwInput.setInputType(InputType.TYPE_CLASS_TEXT);
-        kwInput.setBackgroundColor(Theme.INPUT_BG);
-        kwInput.setTextColor(Theme.TEXT_PRIMARY);
-        kwInput.setPadding(16, 14, 16, 14);
-        LinearLayout.LayoutParams kwParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        kwParams.setMargins(0, 0, 0, 20);
-        kwInput.setLayoutParams(kwParams);
-
-        TextView replyLabel = new TextView(this);
-        replyLabel.setText("Reply to send when any keyword is detected");
-        replyLabel.setTextColor(Theme.TEXT_MUTED);
-        replyLabel.setTextSize(11);
-        replyLabel.setPadding(0, 0, 0, 6);
-
-        EditText replyInput = new EditText(this);
-        replyInput.setText(currentReply);
-        replyInput.setHint("e.g.  Happy New Year! 🎉");
-        replyInput.setHintTextColor(Theme.TEXT_DK);
-        replyInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        replyInput.setMinLines(3);
-        replyInput.setBackgroundColor(Theme.INPUT_BG);
-        replyInput.setTextColor(Theme.TEXT_PRIMARY);
-        replyInput.setPadding(16, 14, 16, 14);
-
-        layout.addView(kwLabel);
-        layout.addView(kwInput);
-        layout.addView(replyLabel);
-        layout.addView(replyInput);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(index == -1 ? "Add Keyword Rule" : "Edit Keyword Rule")
-                .setView(layout)
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this)
+                .setTitle(index == -1 ? "New keyword reply" : "Edit keyword reply")
+                .setView(Ui.dialogBody(this,
+                        "If a message contains (separate words with commas)", kwInput,
+                        "Reply with", replyInput))
                 .setPositiveButton("Save", null)
-                .setNegativeButton("Cancel", null)
-                .create();
+                .setNegativeButton("Cancel", null);
+        if (index != -1) builder.setNeutralButton("Delete", null);
+        AlertDialog dialog = builder.create();
         dialog.show();
+
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String kwRaw  = kwInput.getText().toString().trim();
             String reply  = replyInput.getText().toString().trim();
 
             if (kwRaw.isEmpty()) {
-                showAlert("Missing Keyword", "Please enter at least one keyword.");
+                kwInput.setError("Enter at least one word");
                 return;
             }
             if (reply.isEmpty()) {
-                showAlert("Missing Reply", "Please enter a reply message.");
+                replyInput.setError("Enter a reply");
                 return;
             }
 
@@ -304,8 +147,7 @@ public class KeywordRulesActivity extends AppCompatActivity {
                     String[] existingKws = keywords.get(i).split(",");
                     for (String exKw : existingKws) {
                         if (exKw.toLowerCase().trim().equals(newKwLower)) {
-                            showAlert("Duplicate Keyword",
-                                    "\"" + newKw.trim() + "\" already exists in another rule.");
+                            kwInput.setError("\"" + newKw.trim() + "\" is already used in another rule");
                             return;
                         }
                     }
@@ -323,11 +165,16 @@ public class KeywordRulesActivity extends AppCompatActivity {
             rebuildList();
             dialog.dismiss();
         });
-    }
 
-    private void showAlert(String title, String msg) {
-        new AlertDialog.Builder(this)
-                .setTitle(title).setMessage(msg)
-                .setPositiveButton("OK", null).show();
+        if (index != -1) {
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(Theme.DANGER);
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                keywords.remove(index);
+                replies.remove(index);
+                saveRules();
+                rebuildList();
+                dialog.dismiss();
+            });
+        }
     }
 }

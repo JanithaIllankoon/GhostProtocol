@@ -132,8 +132,8 @@ public class KeepAliveService extends Service {
         }
 
         Notification notification = new NotificationCompat.Builder(this, channelId)
-                .setContentTitle("Ghost Protocol Active")
-                .setContentText("System Overlay Active. Protected.")
+                .setContentTitle("Ghost Protocol is on")
+                .setContentText("Auto-replying to WhatsApp while you're away")
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setOngoing(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)

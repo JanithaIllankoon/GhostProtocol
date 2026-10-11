@@ -1,14 +1,12 @@
 package com.example.ghostprotocol;
 
 import android.Manifest;
-import android.app.AlertDialog;
 import android.app.AppOpsManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -19,9 +17,9 @@ import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
-import android.widget.Button;
+import android.view.View;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -29,18 +27,32 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.materialswitch.MaterialSwitch;
+
 import org.json.JSONArray;
 
 public class MainActivity extends AppCompatActivity {
 
-    private Button statusButton;
-    private Button restartButton;
-    private Button stopButton;
-    private Button focusButton;
-    private TextView serviceHealthText;
-    private TextView footerCounts;
+    // Status card
+    private View statusDot;
+    private TextView statusTitle;
+    private TextView statusBody;
+    private TextView statusButton;
+    private TextView statusLink;
+
+    // Usage-access notice (hidden once granted)
+    private LinearLayout usageNotice;
+
+    // Focus mode + settings rows
+    private MaterialSwitch focusSwitch;
+    private TextView repliesSummary;
+    private TextView keywordsSummary;
+    private TextView contactsSummary;
+    private TextView historySummary;
 
     private boolean manuallyStopped = false;
+    private boolean restarting = false;
 
     private final Handler healthPoller = new Handler(Looper.getMainLooper());
     private final Runnable healthCheck = new Runnable() {
@@ -126,8 +138,7 @@ public class MainActivity extends AppCompatActivity {
         // 5. Kick off initial status + health polling
         //    (needed when called from the overlay launcher callback,
         //    since onResume already ran with null UI and returned early)
-        updateStatus();
-        updateFooterCounts();
+        refreshAll();
         healthPoller.post(healthCheck);
 
         // 6. USAGE ACCESS — required to detect when WhatsApp is open so the
@@ -159,21 +170,23 @@ public class MainActivity extends AppCompatActivity {
 
     private void maybePromptUsageAccess() {
         if (hasUsageAccess()) return;
-        new AlertDialog.Builder(this)
-                .setTitle("Usage Access Needed")
-                .setMessage("Ghost Protocol needs Usage Access to detect when WhatsApp is open, "
-                        + "so it can stand down and NOT auto-reply while you're actively chatting.\n\n"
-                        + "Without it, auto-replies may be sent even while you have WhatsApp open.\n\n"
-                        + "On the next screen: find Ghost Protocol and turn on \"Permit usage access\".")
-                .setPositiveButton("Grant", (d, w) -> {
-                    try {
-                        startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
-                    } catch (Exception e) {
-                        startActivity(new Intent(Settings.ACTION_SETTINGS));
-                    }
-                })
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("One more permission")
+                .setMessage("Allow usage access so Ghost Protocol can tell when you have "
+                        + "WhatsApp open, and stay quiet while you're chatting.\n\n"
+                        + "On the next screen, find Ghost Protocol and turn on "
+                        + "\"Permit usage access\".")
+                .setPositiveButton("Continue", (d, w) -> openUsageAccessSettings())
                 .setNegativeButton("Later", null)
                 .show();
+    }
+
+    private void openUsageAccessSettings() {
+        try {
+            startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+        } catch (Exception e) {
+            startActivity(new Intent(Settings.ACTION_SETTINGS));
+        }
     }
 
     /**
@@ -207,12 +220,13 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == 102) {
             if (grantResults.length > 0
                     && grantResults[0] != PackageManager.PERMISSION_GRANTED) {
-                new AlertDialog.Builder(this)
-                        .setTitle("Contacts Permission")
-                        .setMessage("Without contact access, GhostProtocol cannot distinguish "
-                                + "saved contacts from strangers. It will use a basic heuristic "
-                                + "instead (phone-number-only titles treated as unknown).\n\n"
-                                + "To grant later: Settings → Apps → Ghost Protocol → Permissions.")
+                new MaterialAlertDialogBuilder(this)
+                        .setTitle("Contacts not allowed")
+                        .setMessage("Ghost Protocol uses your contacts to tell friends apart "
+                                + "from unknown numbers. Without it, anyone shown only as a "
+                                + "phone number is treated as unknown.\n\n"
+                                + "You can allow it later in Settings › Apps › Ghost Protocol "
+                                + "› Permissions.")
                         .setPositiveButton("OK", null)
                         .show();
             }
@@ -236,159 +250,119 @@ public class MainActivity extends AppCompatActivity {
     // UI BUILDER
     // -------------------------------------------------------------------------
     private void buildUI() {
-        ScrollView scroll = new ScrollView(this);
+        LinearLayout column = Ui.screen(this, "Ghost Protocol",
+                "Replies to your WhatsApp messages while you're away.", false);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.setBackgroundColor(Theme.BG);
-        root.setPadding(60, 80, 60, 80);
+        // App icon beside the title
+        LinearLayout header = (LinearLayout) column.getChildAt(0);
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.mipmap.ic_launcher_round);
+        LinearLayout.LayoutParams iconParams =
+                new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44));
+        header.addView(icon, iconParams);
 
-        // --- Title ---
-        TextView titleText = new TextView(this);
-        titleText.setText("GHOST PROTOCOL");
-        titleText.setTextColor(Theme.PRIMARY);
-        titleText.setTextSize(22);
-        titleText.setTypeface(null, Typeface.BOLD);
-        titleText.setGravity(Gravity.CENTER);
-        titleText.setPadding(0, 0, 0, 8);
+        column.addView(buildStatusCard(), spaced(16));
+        column.addView(buildUsageNotice(), spaced(12));
 
-        // --- Live health indicator ---
-        serviceHealthText = new TextView(this);
-        serviceHealthText.setText("Checking...");
-        serviceHealthText.setTextColor(Theme.TEXT_MUTED);
-        serviceHealthText.setTextSize(12);
-        serviceHealthText.setGravity(Gravity.CENTER);
-        serviceHealthText.setPadding(0, 0, 0, 40);
+        // --- Who gets replies ---
+        column.addView(Ui.sectionLabel(this, "Who gets replies"));
+        LinearLayout focusCard = Ui.card(this);
+        focusCard.addView(buildFocusRow());
+        column.addView(focusCard);
 
-        // --- Main status button ---
-        statusButton = new Button(this);
-        statusButton.setAllCaps(false);
-        statusButton.setTextSize(16);
-        statusButton.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 160);
-        statusParams.setMargins(0, 0, 0, 24);
-        statusButton.setLayoutParams(statusParams);
-        statusButton.setOnClickListener(v -> {
-            if (!isNotificationServiceEnabled()) {
-                startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
-            }
-        });
+        // --- Settings ---
+        column.addView(Ui.sectionLabel(this, "Settings"));
+        LinearLayout settings = Ui.card(this);
+        LinearLayout repliesRow = Ui.row(this, "Away messages", " ", null, 0,
+                v -> open(EditMessagesActivity.class));
+        repliesSummary = subtitleOf(repliesRow);
+        Ui.addRow(settings, repliesRow);
 
-        // --- Force Restart ---
-        restartButton = new Button(this);
-        restartButton.setText("⟳  FORCE RESTART SERVICE");
-        restartButton.setAllCaps(false);
-        restartButton.setTextSize(14);
-        restartButton.setTextColor(Theme.WARN);
-        restartButton.setBackgroundColor(Theme.INPUT_BG);
-        restartButton.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams restartParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 130);
-        restartParams.setMargins(0, 0, 0, 16);
-        restartButton.setLayoutParams(restartParams);
-        restartButton.setOnClickListener(v -> forceRestartService());
+        LinearLayout keywordsRow = Ui.row(this, "Keyword replies", " ", null, 0,
+                v -> open(KeywordRulesActivity.class));
+        keywordsSummary = subtitleOf(keywordsRow);
+        Ui.addRow(settings, keywordsRow);
 
-        // --- Stop / Start toggle ---
-        stopButton = new Button(this);
-        stopButton.setAllCaps(false);
-        stopButton.setTextSize(14);
-        stopButton.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams stopParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 130);
-        stopParams.setMargins(0, 0, 0, 36);
-        stopButton.setLayoutParams(stopParams);
-        stopButton.setOnClickListener(v -> {
-            if (manuallyStopped) startProtocol(); else stopProtocol();
-        });
+        LinearLayout contactsRow = Ui.row(this, "Contact list", " ", null, 0,
+                v -> open(WhitelistActivity.class));
+        contactsSummary = subtitleOf(contactsRow);
+        Ui.addRow(settings, contactsRow);
+        column.addView(settings);
 
-        // --- Section divider: Customise ---
-        root.addView(titleText);
-        root.addView(serviceHealthText);
-        root.addView(statusButton);
-        root.addView(restartButton);
-        root.addView(stopButton);
-
-        root.addView(sectionDivider("CUSTOMISE"));
-
-        // --- Edit Messages ---
-        root.addView(navButton("✉  Edit Auto-Reply Messages", EditMessagesActivity.class));
-
-        // --- Keyword Rules ---
-        root.addView(navButton("🔑  Manage Keyword Rules", KeywordRulesActivity.class));
-
-        // --- Whitelist ---
-        root.addView(navButton("✓  Manage Whitelist", WhitelistActivity.class));
-
-        // --- Focus Mode toggle ---
-        // Inverts the whitelist into an allow-list: reply ONLY to whitelisted
-        // contacts, ignore everyone else.
-        focusButton = new Button(this);
-        focusButton.setAllCaps(false);
-        focusButton.setTextSize(13);
-        focusButton.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams focusParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 120);
-        focusParams.setMargins(0, 0, 0, 12);
-        focusButton.setLayoutParams(focusParams);
-        focusButton.setOnClickListener(v -> toggleFocusMode());
-        root.addView(focusButton);
-        updateFocusButton();
-
-        // --- Section divider: Monitor ---
-        root.addView(sectionDivider("MONITOR"));
-
-        // --- Reply History ---
-        root.addView(navButton("📜  View Reply History", HistoryActivity.class));
-
-        // --- Footer counts ---
-        footerCounts = new TextView(this);
-        footerCounts.setTextColor(Theme.TEXT_QUATERNARY);
-        footerCounts.setTextSize(10);
-        footerCounts.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams footerParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        footerParams.setMargins(0, 40, 0, 0);
-        footerCounts.setLayoutParams(footerParams);
-        root.addView(footerCounts);
-
-        scroll.addView(root);
-        setContentView(scroll);
+        // --- Activity ---
+        column.addView(Ui.sectionLabel(this, "Activity"));
+        LinearLayout activity = Ui.card(this);
+        LinearLayout historyRow = Ui.row(this, "Recent replies", " ", null, 0,
+                v -> open(HistoryActivity.class));
+        historySummary = subtitleOf(historyRow);
+        Ui.addRow(activity, historyRow);
+        column.addView(activity);
     }
 
-    // Helper: section divider label
-    private TextView sectionDivider(String label) {
-        TextView tv = new TextView(this);
-        tv.setText(label);
-        tv.setTextColor(Theme.TEXT_QUATERNARY);
-        tv.setTextSize(11);
-        tv.setTypeface(null, Typeface.BOLD);
-        tv.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        params.setMargins(0, 10, 0, 14);
-        tv.setLayoutParams(params);
-        return tv;
+    private View buildStatusCard() {
+        LinearLayout card = Ui.card(this);
+        int p = Ui.dp(this, 20);
+        card.setPadding(p, p, p, Ui.dp(this, 14));
+
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        statusDot = Ui.dot(this, Theme.TEXT_TERTIARY, 10);
+        titleRow.addView(statusDot);
+        statusTitle = Ui.bold(Ui.text(this, "Checking…", 22, Theme.TEXT_PRIMARY));
+        statusTitle.setPadding(Ui.dp(this, 10), 0, 0, 0);
+        titleRow.addView(statusTitle);
+        card.addView(titleRow);
+
+        statusBody = Ui.text(this, "", 14, Theme.TEXT_SECONDARY);
+        statusBody.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 18));
+        card.addView(statusBody);
+
+        statusButton = Ui.button(this, "", true, null);
+        card.addView(statusButton);
+
+        statusLink = Ui.text(this, "", 13, Theme.TEXT_SECONDARY);
+        statusLink.setGravity(Gravity.CENTER);
+        statusLink.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 4));
+        card.addView(statusLink, new LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP));
+        return card;
     }
 
-    // Helper: standard navigation button
-    private Button navButton(String label, final Class<?> target) {
-        Button b = new Button(this);
-        b.setText(label);
-        b.setAllCaps(false);
-        b.setTextColor(Theme.TEXT_SECONDARY);
-        b.setBackgroundColor(Theme.BUTTON_BG);
-        b.setTextSize(13);
-        b.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 120);
-        params.setMargins(0, 0, 0, 12);
-        b.setLayoutParams(params);
-        b.setOnClickListener(v -> startActivity(new Intent(this, target)));
-        return b;
+    private View buildUsageNotice() {
+        usageNotice = Ui.card(this);
+        LinearLayout row = Ui.row(this, "Allow usage access",
+                "So replies pause while you're using WhatsApp.", null, 0,
+                v -> openUsageAccessSettings());
+        TextView title = (TextView) ((LinearLayout) row.getChildAt(0)).getChildAt(0);
+        title.setTextColor(Theme.WARN);
+        usageNotice.addView(row);
+        return usageNotice;
+    }
+
+    private View buildFocusRow() {
+        LinearLayout row = Ui.row(this, "Focus mode", " ", null, 0, null);
+        row.setBackground(Ui.pressable(this, Theme.SURFACE, 0));
+        focusSwitch = new MaterialSwitch(this);
+        focusSwitch.setClickable(false); // the whole row toggles
+        focusSwitch.setFocusable(false);
+        row.addView(focusSwitch);
+        row.setOnClickListener(v -> toggleFocusMode());
+        return row;
+    }
+
+    private static TextView subtitleOf(LinearLayout row) {
+        LinearLayout texts = (LinearLayout) row.getChildAt(0);
+        return (TextView) texts.getChildAt(1);
+    }
+
+    private LinearLayout.LayoutParams spaced(int topDp) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP);
+        lp.topMargin = Ui.dp(this, topDp);
+        return lp;
+    }
+
+    private void open(Class<?> target) {
+        startActivity(new Intent(this, target));
     }
 
     // -------------------------------------------------------------------------
@@ -403,21 +377,8 @@ public class MainActivity extends AppCompatActivity {
         boolean enabled = !loadFocusMode();
         getSharedPreferences(GhostService.MSG_PREFS, MODE_PRIVATE)
                 .edit().putBoolean(GhostService.KEY_FOCUS_MODE, enabled).apply();
-        updateFocusButton();
+        updateSummaries();
         Log.i("GhostProtocol", "Focus Mode " + (enabled ? "enabled" : "disabled") + ".");
-    }
-
-    private void updateFocusButton() {
-        if (focusButton == null) return;
-        if (loadFocusMode()) {
-            focusButton.setText("🎯  Focus Mode: ON  (reply only to whitelist)");
-            focusButton.setTextColor(Theme.PRIMARY);
-            focusButton.setBackgroundColor(Theme.PRIMARY_BG);
-        } else {
-            focusButton.setText("🎯  Focus Mode: OFF  (reply to everyone)");
-            focusButton.setTextColor(Theme.TEXT_SECONDARY);
-            focusButton.setBackgroundColor(Theme.BUTTON_BG);
-        }
     }
 
     // -------------------------------------------------------------------------
@@ -446,12 +407,13 @@ public class MainActivity extends AppCompatActivity {
                 PackageManager.DONT_KILL_APP);
         startKeepAliveService();
         Log.i("GhostProtocol", "Protocol manually started.");
+        updateStatus();
         healthPoller.postDelayed(this::updateStatus, 1000);
     }
 
     private void forceRestartService() {
-        restartButton.setText("Restarting...");
-        restartButton.setEnabled(false);
+        restarting = true;
+        updateStatus();
 
         stopService(new Intent(this, KeepAliveService.class));
 
@@ -469,8 +431,7 @@ public class MainActivity extends AppCompatActivity {
                     PackageManager.DONT_KILL_APP);
             startKeepAliveService();
             healthPoller.postDelayed(() -> {
-                restartButton.setText("⟳  FORCE RESTART SERVICE");
-                restartButton.setEnabled(true);
+                restarting = false;
                 updateStatus();
             }, 1500);
         }, 500);
@@ -492,8 +453,7 @@ public class MainActivity extends AppCompatActivity {
         if (!manuallyStopped) {
             startKeepAliveService();
         }
-        updateStatus();
-        updateFooterCounts();
+        refreshAll();
         healthPoller.post(healthCheck);
     }
 
@@ -503,69 +463,85 @@ public class MainActivity extends AppCompatActivity {
         healthPoller.removeCallbacks(healthCheck);
     }
 
+    private void refreshAll() {
+        updateStatus();
+        updateSummaries();
+        usageNotice.setVisibility(hasUsageAccess() ? View.GONE : View.VISIBLE);
+    }
+
     private void updateStatus() {
         if (statusButton == null) return; // UI not yet built
         boolean listenerEnabled = isNotificationServiceEnabled();
         boolean keepAliveRunning = KeepAliveService.isRunning();
-        boolean fullyHealthy = listenerEnabled && keepAliveRunning;
+
+        if (restarting) {
+            showStatus(Theme.TEXT_TERTIARY, "Restarting…",
+                    "Give it a second.",
+                    "Restarting…", false, null, null, null);
+            statusButton.setEnabled(false);
+            statusButton.setAlpha(0.5f);
+            return;
+        }
+        statusButton.setEnabled(true);
+        statusButton.setAlpha(1f);
 
         if (manuallyStopped) {
-            statusButton.setText("GHOST PROTOCOL: STOPPED\n(Tap the button below to resume)");
-            statusButton.setBackgroundColor(Theme.INPUT_BG);
-            statusButton.setTextColor(Theme.TEXT_MUTED);
-            serviceHealthText.setText("○ Manually stopped");
-            serviceHealthText.setTextColor(Theme.TEXT_MUTED);
-            stopButton.setText("▶  START PROTOCOL");
-            stopButton.setTextColor(Theme.PRIMARY);
-            stopButton.setBackgroundColor(Theme.PRIMARY_BG);
-            restartButton.setEnabled(false);
-            restartButton.setAlpha(0.4f);
+            showStatus(Theme.TEXT_TERTIARY, "Paused",
+                    "Nobody will get an auto-reply until you turn it back on.",
+                    "Turn on", true, v -> startProtocol(),
+                    null, null);
 
-        } else if (fullyHealthy) {
-            statusButton.setText("GHOST PROTOCOL: ACTIVE\n(System Locked)");
-            statusButton.setBackgroundColor(Theme.PRIMARY_BG);
-            statusButton.setTextColor(Theme.PRIMARY);
-            serviceHealthText.setText("● Listener bound  ● Anchor alive");
-            serviceHealthText.setTextColor(Theme.PRIMARY);
-            stopButton.setText("■  STOP PROTOCOL");
-            stopButton.setTextColor(Theme.DANGER);
-            stopButton.setBackgroundColor(Theme.INPUT_BG);
-            restartButton.setEnabled(true);
-            restartButton.setAlpha(1f);
+        } else if (listenerEnabled && keepAliveRunning) {
+            showStatus(Theme.ACCENT, "Active",
+                    "Replying to WhatsApp messages while you're away.",
+                    "Pause", false, v -> stopProtocol(),
+                    "Not replying? Restart", v -> forceRestartService());
 
-        } else if (listenerEnabled && !keepAliveRunning) {
-            statusButton.setText("GHOST PROTOCOL: DEGRADED\n(Anchor service dead — tap Restart)");
-            statusButton.setBackgroundColor(Theme.WARN_BG);
-            statusButton.setTextColor(Theme.WARN);
-            serviceHealthText.setText("● Listener bound  ✕ Anchor dead");
-            serviceHealthText.setTextColor(Theme.WARN);
-            stopButton.setText("■  STOP PROTOCOL");
-            stopButton.setTextColor(Theme.DANGER);
-            stopButton.setBackgroundColor(Theme.INPUT_BG);
-            restartButton.setEnabled(true);
-            restartButton.setAlpha(1f);
+        } else if (listenerEnabled) {
+            showStatus(Theme.WARN, "Needs a restart",
+                    "Ghost Protocol stopped running in the background.",
+                    "Restart", true, v -> forceRestartService(),
+                    "Pause instead", v -> stopProtocol());
 
         } else {
-            statusButton.setText("ENABLE GHOST PROTOCOL\n(Tap to allow notification access)");
-            statusButton.setBackgroundColor(Theme.ERROR_BG);
-            statusButton.setTextColor(Theme.TEXT_PRIMARY);
-            serviceHealthText.setText("✕ Notification listener not enabled");
-            serviceHealthText.setTextColor(Theme.DANGER);
-            stopButton.setText("■  STOP PROTOCOL");
-            stopButton.setTextColor(Theme.DANGER);
-            stopButton.setBackgroundColor(Theme.INPUT_BG);
-            restartButton.setEnabled(true);
-            restartButton.setAlpha(1f);
+            showStatus(Theme.DANGER, "Finish setup",
+                    "Allow notification access so Ghost Protocol can see new WhatsApp messages.",
+                    "Allow access", true,
+                    v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)),
+                    "Pause", v -> stopProtocol());
+        }
+    }
+
+    private void showStatus(int dotColor, String title, String body,
+                            String buttonLabel, boolean primary, View.OnClickListener onButton,
+                            String link, View.OnClickListener onLink) {
+        Ui.setDotColor(statusDot, dotColor);
+        statusTitle.setText(title);
+        statusBody.setText(body);
+
+        statusButton.setText(buttonLabel);
+        statusButton.setTextColor(primary ? Theme.ON_ACCENT : Theme.TEXT_PRIMARY);
+        statusButton.setBackground(Ui.pressable(this,
+                primary ? Theme.ACCENT : Theme.SURFACE_HIGH, 25));
+        statusButton.setOnClickListener(onButton);
+
+        if (link == null) {
+            statusLink.setVisibility(View.GONE);
+        } else {
+            statusLink.setVisibility(View.VISIBLE);
+            statusLink.setText(link);
+            statusLink.setOnClickListener(onLink);
         }
     }
 
     // -------------------------------------------------------------------------
-    // Footer live counts — whitelist / rules / pool / history
+    // Row summaries — whitelist / rules / pool / history
     // -------------------------------------------------------------------------
-    private void updateFooterCounts() {
-        if (footerCounts == null) return;
+    private void updateSummaries() {
+        if (repliesSummary == null) return;
         SharedPreferences prefs = getSharedPreferences(
                 GhostService.MSG_PREFS, Context.MODE_PRIVATE);
+        boolean focus = loadFocusMode();
 
         // Whitelist
         int wlCount = prefs.getInt("whitelist_count", -1);
@@ -585,12 +561,29 @@ public class MainActivity extends AppCompatActivity {
             histCount = arr.length();
         } catch (Exception ignored) {}
 
-        footerCounts.setText(
-                wlCount + " whitelisted  ·  "
-                        + kwCount + " keyword rules  ·  "
-                        + poolCount + " pool msgs  ·  "
-                        + histCount + " in history"
-        );
+        focusSwitch.setChecked(focus);
+        TextView focusSummary = subtitleOf((LinearLayout) focusSwitch.getParent());
+        focusSummary.setText(focus
+                ? "Only people on your contact list get replies"
+                : "Everyone gets replies, except your contact list");
+
+        repliesSummary.setText(plural(poolCount, "message") + ", plus call & unknown-number replies");
+        keywordsSummary.setText(kwCount == 0
+                ? "Reply differently to certain words"
+                : plural(kwCount, "rule"));
+        contactsSummary.setText(plural(wlCount, "person", "people")
+                + (focus ? " · the only ones who get replies" : " · never get replies"));
+        historySummary.setText(histCount == 0
+                ? "Nothing sent yet"
+                : plural(histCount, "reply", "replies") + " sent");
+    }
+
+    private static String plural(int n, String one) {
+        return plural(n, one, one + "s");
+    }
+
+    private static String plural(int n, String one, String many) {
+        return n + " " + (n == 1 ? one : many);
     }
 
     private boolean isNotificationServiceEnabled() {

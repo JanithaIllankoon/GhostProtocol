@@ -1,19 +1,14 @@
 package com.example.ghostprotocol;
 
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.graphics.Typeface;
 import android.os.Bundle;
-import android.text.InputType;
-import android.view.Gravity;
-import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,7 +23,7 @@ import java.util.List;
  */
 public class WhitelistActivity extends AppCompatActivity {
 
-    private LinearLayout listContainer;
+    private LinearLayout listCard;
     private final List<String> entries = new ArrayList<>();
 
     @Override
@@ -76,152 +71,66 @@ public class WhitelistActivity extends AppCompatActivity {
     // UI
     // -------------------------------------------------------------------------
     private void buildUI() {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(Theme.BG);
+        boolean focus = getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
+                .getBoolean(GhostService.KEY_FOCUS_MODE, false);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(40, 50, 40, 50);
+        LinearLayout column = Ui.screen(this, "Contact list",
+                focus
+                        ? "Focus mode is on, so only these people get auto-replies."
+                        : "These people never get auto-replies.",
+                true);
 
-        TextView header = new TextView(this);
-        header.setText("Whitelist");
-        header.setTextColor(Theme.PRIMARY);
-        header.setTextSize(20);
-        header.setTypeface(null, Typeface.BOLD);
-        header.setGravity(Gravity.CENTER);
-        header.setPadding(0, 0, 0, 8);
-
-        TextView subHeader = new TextView(this);
-        subHeader.setText("Normally, contacts listed here are never auto-replied to. With Focus Mode ON (main screen), this list flips into an allow-list — the protocol replies ONLY to these contacts and ignores everyone else. Match is exact (case-insensitive) — enter the name exactly as it appears in WhatsApp.");
-        subHeader.setTextColor(Theme.TEXT_MUTED);
-        subHeader.setTextSize(12);
-        subHeader.setGravity(Gravity.CENTER);
-        subHeader.setPadding(0, 0, 0, 30);
-
-        listContainer = new LinearLayout(this);
-        listContainer.setOrientation(LinearLayout.VERTICAL);
-
-        Button addBtn = new Button(this);
-        addBtn.setText("＋  ADD CONTACT");
-        addBtn.setAllCaps(false);
-        addBtn.setTextColor(Theme.PRIMARY);
-        addBtn.setBackgroundColor(Theme.PRIMARY_BG);
-        addBtn.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 120);
-        addParams.setMargins(0, 20, 0, 0);
-        addBtn.setLayoutParams(addParams);
-        addBtn.setOnClickListener(v -> showEditDialog(-1, ""));
-
-        root.addView(header);
-        root.addView(subHeader);
-        root.addView(listContainer);
-        root.addView(addBtn);
-        scroll.addView(root);
-        setContentView(scroll);
+        column.addView(Ui.sectionLabel(this, "People"));
+        listCard = Ui.card(this);
+        column.addView(listCard);
+        column.addView(Ui.hint(this,
+                "Type each name exactly as it shows in WhatsApp. "
+                        + "Turn on Focus mode on the home screen to flip this list, "
+                        + "so only these people get replies."));
 
         rebuildList();
     }
 
     private void rebuildList() {
-        listContainer.removeAllViews();
+        listCard.removeAllViews();
 
         if (entries.isEmpty()) {
-            TextView empty = new TextView(this);
-            empty.setText("No whitelisted contacts.\nTap the button below to add one.");
-            empty.setTextColor(Theme.TEXT_MUTED);
-            empty.setTextSize(13);
-            empty.setGravity(Gravity.CENTER);
-            empty.setPadding(0, 20, 0, 20);
-            listContainer.addView(empty);
-            return;
+            Ui.addRow(listCard, Ui.emptyRow(this, "Nobody on the list yet."));
         }
 
         for (int i = 0; i < entries.size(); i++) {
-            listContainer.addView(buildCard(i));
+            final int index = i;
+            Ui.addRow(listCard, Ui.row(this, entries.get(i), null, null, 1,
+                    v -> showEditDialog(index, entries.get(index))));
         }
-    }
 
-    private View buildCard(final int index) {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackgroundColor(Theme.CARD_BG);
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        cardParams.setMargins(0, 0, 0, 14);
-        card.setLayoutParams(cardParams);
-        card.setPadding(24, 20, 24, 16);
-
-        TextView name = new TextView(this);
-        name.setText(entries.get(index));
-        name.setTextColor(Theme.TEXT_PRIMARY);
-        name.setTextSize(15);
-        name.setTypeface(null, Typeface.BOLD);
-        name.setPadding(0, 0, 0, 14);
-
-        LinearLayout btnRow = new LinearLayout(this);
-        btnRow.setOrientation(LinearLayout.HORIZONTAL);
-
-        Button editBtn = new Button(this);
-        editBtn.setText("✎  Edit");
-        editBtn.setAllCaps(false);
-        editBtn.setTextColor(Theme.WARN);
-        editBtn.setBackgroundColor(Theme.EDIT_BG);
-        editBtn.setTextSize(12);
-        LinearLayout.LayoutParams editParams = new LinearLayout.LayoutParams(0, 90, 1f);
-        editParams.setMargins(0, 0, 8, 0);
-        editBtn.setLayoutParams(editParams);
-        editBtn.setOnClickListener(v -> showEditDialog(index, entries.get(index)));
-
-        Button deleteBtn = new Button(this);
-        deleteBtn.setText("✕  Remove");
-        deleteBtn.setAllCaps(false);
-        deleteBtn.setTextColor(Theme.DANGER);
-        deleteBtn.setBackgroundColor(Theme.DELETE_BG);
-        deleteBtn.setTextSize(12);
-        deleteBtn.setLayoutParams(new LinearLayout.LayoutParams(0, 90, 1f));
-        deleteBtn.setOnClickListener(v -> {
-            entries.remove(index);
-            saveEntries();
-            rebuildList();
-        });
-
-        btnRow.addView(editBtn);
-        btnRow.addView(deleteBtn);
-        card.addView(name);
-        card.addView(btnRow);
-        return card;
+        Ui.addRow(listCard, Ui.addRowButton(this, "Add person",
+                v -> showEditDialog(-1, "")));
     }
 
     private void showEditDialog(final int index, String current) {
-        EditText input = new EditText(this);
-        input.setText(current);
-        input.setHint("e.g.  Alice Example");
-        input.setHintTextColor(Theme.TEXT_DK);
-        input.setInputType(InputType.TYPE_CLASS_TEXT);
-        input.setBackgroundColor(Theme.INPUT_BG);
-        input.setTextColor(Theme.TEXT_PRIMARY);
-        input.setPadding(20, 20, 20, 20);
+        EditText input = Ui.input(this, current, "e.g.  Alice Example", false);
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(index == -1 ? "Add Contact" : "Edit Contact")
-                .setView(input)
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this)
+                .setTitle(index == -1 ? "Add person" : "Edit person")
+                .setView(Ui.dialogBody(this, "Name as shown in WhatsApp", input))
                 .setPositiveButton("Save", null)
-                .setNegativeButton("Cancel", null)
-                .create();
+                .setNegativeButton("Cancel", null);
+        if (index != -1) builder.setNeutralButton("Remove", null);
+        AlertDialog dialog = builder.create();
         dialog.show();
+
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String val = input.getText().toString().trim();
             if (val.isEmpty()) {
-                showAlert("Empty", "Contact name can't be empty.");
+                input.setError("Name can't be empty");
                 return;
             }
             // Duplicate check (case-insensitive)
             for (int i = 0; i < entries.size(); i++) {
                 if (i == index) continue;
                 if (entries.get(i).equalsIgnoreCase(val)) {
-                    showAlert("Duplicate", "\"" + val + "\" is already whitelisted.");
+                    input.setError("Already on the list");
                     return;
                 }
             }
@@ -234,11 +143,15 @@ public class WhitelistActivity extends AppCompatActivity {
             rebuildList();
             dialog.dismiss();
         });
-    }
 
-    private void showAlert(String title, String msg) {
-        new AlertDialog.Builder(this)
-                .setTitle(title).setMessage(msg)
-                .setPositiveButton("OK", null).show();
+        if (index != -1) {
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(Theme.DANGER);
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                entries.remove(index);
+                saveEntries();
+                rebuildList();
+                dialog.dismiss();
+            });
+        }
     }
 }

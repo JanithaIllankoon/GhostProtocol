@@ -6,33 +6,31 @@ import android.graphics.Color;
  * Centralised colour palette for the Ghost Protocol UI.
  * All activities reference these constants rather than hardcoding colours —
  * retheming the whole app is a one-file change.
+ *
+ * The palette is deliberately monochrome: near-black surfaces, grey text tiers
+ * and a single mint accent taken from the app icon. Warn/danger are reserved
+ * for the status indicator and destructive actions.
  */
 public final class Theme {
     private Theme() {}
 
-    // ---- Backgrounds ----
-    public static final int BG            = Color.parseColor("#0A0A0A"); // root
-    public static final int CARD_BG       = Color.parseColor("#111111"); // list cards
-    public static final int BUTTON_BG     = Color.parseColor("#141414"); // secondary buttons
-    public static final int INPUT_BG      = Color.parseColor("#1A1A1A"); // text fields
-    public static final int EDIT_BG       = Color.parseColor("#1A1A00"); // edit action
-    public static final int DELETE_BG     = Color.parseColor("#1A0000"); // delete action
-    public static final int PRIMARY_BG    = Color.parseColor("#003300"); // active/go state
-    public static final int ERROR_BG      = Color.parseColor("#330000"); // error state
-    public static final int WARN_BG       = Color.parseColor("#332200"); // degraded state
+    // ---- Surfaces ----
+    public static final int BG             = Color.parseColor("#0B0D0C"); // window
+    public static final int SURFACE        = Color.parseColor("#151917"); // cards
+    public static final int SURFACE_HIGH   = Color.parseColor("#1E2321"); // inputs, pressed, dialogs
+    public static final int DIVIDER        = Color.parseColor("#252B28");
 
-    // ---- Accents ----
-    public static final int PRIMARY       = Color.parseColor("#00FF41"); // electric green
-    public static final int WARN          = Color.parseColor("#FFCC00"); // yellow
-    public static final int DANGER        = Color.parseColor("#FF4444"); // red
-    public static final int ACCENT_CALL   = Color.parseColor("#00CFFF"); // cyan — calls / keywords
-    public static final int ACCENT_SPAM   = Color.parseColor("#FFAA00"); // orange — spam
+    // ---- Accent ----
+    public static final int ACCENT         = Color.parseColor("#3DDC97"); // mint, from the icon
+    public static final int ACCENT_DIM     = Color.parseColor("#163A2B"); // accent-tinted surface
+    public static final int ON_ACCENT      = Color.parseColor("#06140E"); // text on accent
+
+    // ---- Status ----
+    public static final int WARN           = Color.parseColor("#E8B44C");
+    public static final int DANGER         = Color.parseColor("#E5645B");
 
     // ---- Text tiers ----
-    public static final int TEXT_PRIMARY    = Color.WHITE;
-    public static final int TEXT_SECONDARY  = Color.parseColor("#AAAAAA");
-    public static final int TEXT_TERTIARY   = Color.parseColor("#555555");
-    public static final int TEXT_QUATERNARY = Color.parseColor("#444444");
-    public static final int TEXT_MUTED      = Color.GRAY;
-    public static final int TEXT_DK         = Color.DKGRAY;
+    public static final int TEXT_PRIMARY   = Color.parseColor("#EEF2F0");
+    public static final int TEXT_SECONDARY = Color.parseColor("#A3ABA7");
+    public static final int TEXT_TERTIARY  = Color.parseColor("#6B736F");
 }

@@ -45,7 +45,7 @@ Modern Android OEMs (specifically Xiaomi/Redmi MIUI) utilize highly aggressive t
 ## Tech Stack
 * **Language:** Java · **Min SDK:** 24 · **Target SDK:** 36
 * **Core APIs:** `NotificationListenerService`, `RemoteInput` / `PendingIntent`, `UsageStatsManager`, `AppOpsManager`, `ContactsContract`, `WindowManager` overlays, foreground `Service`.
-* **UI:** fully programmatic (no XML layouts), themed through a single centralized palette (`Theme.java`).
+* **UI:** fully programmatic (no XML layouts) — a minimal dark, end-user-facing design built from shared view helpers (`Ui.java`) and a single centralized palette (`Theme.java`).
 
 ## Disclaimer
 This project was built for educational and research purposes to understand the Android component lifecycle, memory management, and OEM process throttling. The 1x1 pixel overlay technique consumes additional battery by keeping the screen rendering pipeline active and should be used cautiously.

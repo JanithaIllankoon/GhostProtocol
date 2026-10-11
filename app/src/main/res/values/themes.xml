@@ -1,8 +1,27 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.GhostProtocol" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+    <!-- Always-dark theme; colours mirror Theme.java. -->
+    <style name="Base.Theme.GhostProtocol" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">#3DDC97</item>
+        <item name="colorOnPrimary">#06140E</item>
+        <item name="colorPrimaryContainer">#163A2B</item>
+        <item name="colorOnPrimaryContainer">#3DDC97</item>
+        <item name="colorSecondary">#3DDC97</item>
+        <item name="colorAccent">#3DDC97</item>
+        <item name="android:colorBackground">#0B0D0C</item>
+        <item name="android:windowBackground">#0B0D0C</item>
+        <item name="colorSurface">#151917</item>
+        <item name="colorSurfaceContainerHigh">#1E2321</item>
+        <item name="colorSurfaceContainerHighest">#2A302D</item>
+        <item name="colorOnSurface">#EEF2F0</item>
+        <item name="colorOnSurfaceVariant">#A3ABA7</item>
+        <item name="colorOutline">#3A413E</item>
+        <item name="colorError">#E5645B</item>
+        <item name="android:textColorPrimary">#EEF2F0</item>
+        <item name="android:textColorSecondary">#A3ABA7</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowSplashScreenBackground" tools:targetApi="31">#0B0D0C</item>
     </style>
 
     <style name="Theme.GhostProtocol" parent="Base.Theme.GhostProtocol" />

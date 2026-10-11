@@ -1,26 +1,24 @@
 package com.example.ghostprotocol;
 
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.InputType;
-import android.view.Gravity;
-import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class EditMessagesActivity extends AppCompatActivity {
 
-    private LinearLayout listContainer;
+    private LinearLayout poolCard;
+    private LinearLayout specialCard;
+    private LinearLayout timingCard;
     private final List<String> messages = new ArrayList<>();
 
     static final String KEY_SPAM_MSG = "sys_spam_msg";
@@ -68,7 +66,7 @@ public class EditMessagesActivity extends AppCompatActivity {
     }
 
     // -------------------------------------------------------------------------
-    // Load / Save — system messages
+    // Load / Save — system messages and timing
     // -------------------------------------------------------------------------
     private String loadSystemMsg(String key, String defaultMsg) {
         return getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
@@ -80,221 +78,95 @@ public class EditMessagesActivity extends AppCompatActivity {
                 .edit().putString(key, value).apply();
     }
 
-    // -------------------------------------------------------------------------
-    // UI
-    // -------------------------------------------------------------------------
-    private void buildUI() {
-        ScrollView scroll = new ScrollView(this);
-
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Theme.BG);
-        root.setPadding(40, 50, 40, 60);
-
-        TextView header = new TextView(this);
-        header.setText("Message Settings");
-        header.setTextColor(Theme.PRIMARY);
-        header.setTextSize(20);
-        header.setTypeface(null, Typeface.BOLD);
-        header.setGravity(Gravity.CENTER);
-        header.setPadding(0, 0, 0, 30);
-
-        root.addView(header);
-        root.addView(makeSectionLabel(
-                "SYSTEM MESSAGES",
-                "Always sent in specific situations — not chosen randomly."));
-
-        root.addView(buildSystemCard(
-                "Spam Warning",
-                "Sent when someone messages more than once inside the reply window, no more often than the spam cooldown (both set under TIMING).",
-                KEY_SPAM_MSG,
-                GhostService.DEFAULT_POOL[GhostService.IDX_SPAM_WARNING],
-                Theme.ACCENT_SPAM));
-
-        root.addView(buildSystemCard(
-                "Incoming Call Reply",
-                "Sent as a text when someone calls you on WhatsApp. The call still rings normally.",
-                KEY_CALL_MSG,
-                GhostService.DEFAULT_POOL[GhostService.IDX_CALL_DECLINE],
-                Theme.ACCENT_CALL));
-
-        root.addView(buildSystemCard(
-                "Stranger Reply",
-                "Sent the first time someone who is NOT in your contacts messages you.",
-                KEY_STRANGER_MSG,
-                GhostService.STRANGER_MSG,
-                Theme.PRIMARY));
-
-        root.addView(makeSectionLabel(
-                "TIMING",
-                "Controls how often the protocol repeats itself to the same sender."));
-
-        root.addView(buildTimingCard(
-                "Reply Window",
-                "How long before the same sender can trigger a fresh random auto-reply.",
-                GhostService.KEY_WINDOW_MIN,
-                GhostService.DEFAULT_WINDOW_MIN,
-                "minutes",
-                Theme.ACCENT_CALL));
-
-        root.addView(buildTimingCard(
-                "Spam Cooldown",
-                "Minimum gap between spam warnings sent to the same sender.",
-                GhostService.KEY_SPAM_COOLDOWN_HR,
-                GhostService.DEFAULT_SPAM_COOLDOWN_HR,
-                "hours",
-                Theme.ACCENT_SPAM));
-
-        root.addView(makeSectionLabel(
-                "RANDOM AUTO-REPLIES",
-                "One of these is picked at random for the first message in a new reply window."));
-
-        listContainer = new LinearLayout(this);
-        listContainer.setOrientation(LinearLayout.VERTICAL);
-        root.addView(listContainer);
-
-        Button addBtn = new Button(this);
-        addBtn.setText("＋  ADD NEW MESSAGE");
-        addBtn.setAllCaps(false);
-        addBtn.setTextColor(Theme.PRIMARY);
-        addBtn.setBackgroundColor(Theme.PRIMARY_BG);
-        addBtn.setTypeface(null, Typeface.BOLD);
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 120);
-        addParams.setMargins(0, 16, 0, 0);
-        addBtn.setLayoutParams(addParams);
-        addBtn.setOnClickListener(v -> showPoolEditDialog(-1, ""));
-        root.addView(addBtn);
-
-        scroll.addView(root);
-        setContentView(scroll);
-
-        rebuildList();
-    }
-
-    // -------------------------------------------------------------------------
-    // System message card
-    // -------------------------------------------------------------------------
-    private View buildSystemCard(String title, String description,
-                                 String prefKey, String defaultMsg, int accentColor) {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackgroundColor(Theme.CARD_BG);
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        cardParams.setMargins(0, 0, 0, 14);
-        card.setLayoutParams(cardParams);
-        card.setPadding(24, 20, 24, 16);
-
-        TextView titleView = new TextView(this);
-        titleView.setText(title);
-        titleView.setTextColor(accentColor);
-        titleView.setTextSize(12);
-        titleView.setTypeface(null, Typeface.BOLD);
-        titleView.setPadding(0, 0, 0, 4);
-
-        TextView descView = new TextView(this);
-        descView.setText(description);
-        descView.setTextColor(Theme.TEXT_MUTED);
-        descView.setTextSize(11);
-        descView.setPadding(0, 0, 0, 10);
-
-        TextView preview = new TextView(this);
-        preview.setText(loadSystemMsg(prefKey, defaultMsg));
-        preview.setTextColor(Theme.TEXT_PRIMARY);
-        preview.setTextSize(13);
-        preview.setPadding(0, 0, 0, 14);
-
-        Button editBtn = new Button(this);
-        editBtn.setText("✎  Edit this message");
-        editBtn.setAllCaps(false);
-        editBtn.setTextColor(Theme.WARN);
-        editBtn.setBackgroundColor(Theme.EDIT_BG);
-        editBtn.setTextSize(12);
-        editBtn.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 90));
-        editBtn.setOnClickListener(v ->
-                showSystemEditDialog(title, prefKey, defaultMsg, preview));
-
-        card.addView(titleView);
-        card.addView(descView);
-        card.addView(preview);
-        card.addView(editBtn);
-        return card;
-    }
-
-    // -------------------------------------------------------------------------
-    // Timing cards — numeric config (reply window, spam cooldown)
-    // -------------------------------------------------------------------------
     private int loadTiming(String key, int defaultVal) {
         return getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
                 .getInt(key, defaultVal);
     }
 
-    private View buildTimingCard(String title, String description, String prefKey,
-                                 int defaultVal, String unit, int accentColor) {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackgroundColor(Theme.CARD_BG);
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        cardParams.setMargins(0, 0, 0, 14);
-        card.setLayoutParams(cardParams);
-        card.setPadding(24, 20, 24, 16);
+    // -------------------------------------------------------------------------
+    // UI
+    // -------------------------------------------------------------------------
+    private void buildUI() {
+        LinearLayout column = Ui.screen(this, "Away messages",
+                "What people get when they message you while you're away.", true);
 
-        TextView titleView = new TextView(this);
-        titleView.setText(title);
-        titleView.setTextColor(accentColor);
-        titleView.setTextSize(12);
-        titleView.setTypeface(null, Typeface.BOLD);
-        titleView.setPadding(0, 0, 0, 4);
+        column.addView(Ui.sectionLabel(this, "Messages"));
+        poolCard = Ui.card(this);
+        column.addView(poolCard);
+        column.addView(Ui.hint(this, "One of these is picked at random each time."));
 
-        TextView descView = new TextView(this);
-        descView.setText(description);
-        descView.setTextColor(Theme.TEXT_MUTED);
-        descView.setTextSize(11);
-        descView.setPadding(0, 0, 0, 10);
+        column.addView(Ui.sectionLabel(this, "Special situations"));
+        specialCard = Ui.card(this);
+        column.addView(specialCard);
 
-        TextView value = new TextView(this);
-        value.setText(loadTiming(prefKey, defaultVal) + " " + unit);
-        value.setTextColor(Theme.TEXT_PRIMARY);
-        value.setTextSize(15);
-        value.setTypeface(null, Typeface.BOLD);
-        value.setPadding(0, 0, 0, 14);
+        column.addView(Ui.sectionLabel(this, "Timing"));
+        timingCard = Ui.card(this);
+        column.addView(timingCard);
 
-        Button editBtn = new Button(this);
-        editBtn.setText("✎  Change");
-        editBtn.setAllCaps(false);
-        editBtn.setTextColor(Theme.WARN);
-        editBtn.setBackgroundColor(Theme.EDIT_BG);
-        editBtn.setTextSize(12);
-        editBtn.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 90));
-        editBtn.setOnClickListener(v ->
-                showTimingDialog(title, prefKey, defaultVal, unit, value));
-
-        card.addView(titleView);
-        card.addView(descView);
-        card.addView(value);
-        card.addView(editBtn);
-        return card;
+        rebuildPool();
+        rebuildSpecial();
+        rebuildTiming();
     }
 
-    private void showTimingDialog(String title, String prefKey, int defaultVal,
-                                  String unit, TextView valueView) {
-        EditText input = new EditText(this);
-        input.setText(String.valueOf(loadTiming(prefKey, defaultVal)));
-        input.setInputType(InputType.TYPE_CLASS_NUMBER);
-        input.setBackgroundColor(Theme.INPUT_BG);
-        input.setTextColor(Theme.TEXT_PRIMARY);
-        input.setPadding(20, 20, 20, 20);
+    private void rebuildPool() {
+        poolCard.removeAllViews();
+        for (int i = 0; i < messages.size(); i++) {
+            final int index = i;
+            Ui.addRow(poolCard, Ui.row(this, messages.get(i), null, null, 3,
+                    v -> showPoolEditDialog(index, messages.get(index))));
+        }
+        Ui.addRow(poolCard, Ui.addRowButton(this, "Add message",
+                v -> showPoolEditDialog(-1, "")));
+    }
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Edit: " + title)
-                .setMessage("Enter a whole number of " + unit + " (minimum 1).")
-                .setView(input)
+    private void rebuildSpecial() {
+        specialCard.removeAllViews();
+        addSpecialRow("Missed call",
+                "Sent when someone calls you on WhatsApp. The call still rings as normal.",
+                KEY_CALL_MSG, GhostService.DEFAULT_POOL[GhostService.IDX_CALL_DECLINE]);
+        addSpecialRow("Unknown number",
+                "Sent the first time someone who isn't in your contacts messages you.",
+                KEY_STRANGER_MSG, GhostService.STRANGER_MSG);
+        addSpecialRow("Repeated messages",
+                "Sent when someone keeps messaging before you've had a chance to reply.",
+                KEY_SPAM_MSG, GhostService.DEFAULT_POOL[GhostService.IDX_SPAM_WARNING]);
+    }
+
+    private void addSpecialRow(String title, String explanation, String prefKey, String defaultMsg) {
+        Ui.addRow(specialCard, Ui.row(this, title, loadSystemMsg(prefKey, defaultMsg), null, 0,
+                v -> showSystemEditDialog(title, explanation, prefKey, defaultMsg)));
+    }
+
+    private void rebuildTiming() {
+        timingCard.removeAllViews();
+        addTimingRow("Wait before replying again",
+                "How long before the same person can get another away message.",
+                GhostService.KEY_WINDOW_MIN, GhostService.DEFAULT_WINDOW_MIN, "minute");
+        addTimingRow("Repeated-message reminder",
+                "The \"repeated messages\" reply is sent to the same person at most once in this time.",
+                GhostService.KEY_SPAM_COOLDOWN_HR, GhostService.DEFAULT_SPAM_COOLDOWN_HR, "hour");
+    }
+
+    private void addTimingRow(String title, String explanation, String prefKey,
+                              int defaultVal, String unit) {
+        int value = loadTiming(prefKey, defaultVal);
+        Ui.addRow(timingCard, Ui.row(this, title, null, value + " " + unit + (value == 1 ? "" : "s"), 0,
+                v -> showTimingDialog(title, explanation, prefKey, defaultVal, unit)));
+    }
+
+    // -------------------------------------------------------------------------
+    // Dialogs
+    // -------------------------------------------------------------------------
+    private void showTimingDialog(String title, String explanation, String prefKey,
+                                  int defaultVal, String unit) {
+        EditText input = Ui.input(this, String.valueOf(loadTiming(prefKey, defaultVal)),
+                null, false);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
+                .setTitle(title)
+                .setMessage(explanation)
+                .setView(Ui.dialogBody(this, "Number of " + unit + "s", input))
                 .setPositiveButton("Save", null)
                 .setNegativeButton("Cancel", null)
                 .create();
@@ -305,177 +177,71 @@ public class EditMessagesActivity extends AppCompatActivity {
             try {
                 val = Integer.parseInt(raw);
             } catch (NumberFormatException e) {
-                showAlert("Invalid", "Please enter a whole number.");
+                input.setError("Enter a whole number");
                 return;
             }
-            if (val < 1) { showAlert("Too Small", "Value must be at least 1 " + unit + "."); return; }
+            if (val < 1) { input.setError("Must be at least 1"); return; }
             getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
                     .edit().putInt(prefKey, val).apply();
-            valueView.setText(val + " " + unit);
+            rebuildTiming();
             dialog.dismiss();
         });
     }
 
-    // -------------------------------------------------------------------------
-    // Random pool cards
-    // -------------------------------------------------------------------------
-    private void rebuildList() {
-        listContainer.removeAllViews();
-        for (int i = 0; i < messages.size(); i++) {
-            listContainer.addView(buildPoolCard(i));
-        }
-    }
+    private void showSystemEditDialog(String title, String explanation,
+                                      String prefKey, String defaultMsg) {
+        EditText input = Ui.input(this, loadSystemMsg(prefKey, defaultMsg), null, true);
 
-    private View buildPoolCard(final int index) {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackgroundColor(Theme.CARD_BG);
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        cardParams.setMargins(0, 0, 0, 14);
-        card.setLayoutParams(cardParams);
-        card.setPadding(24, 20, 24, 16);
-
-        TextView label = new TextView(this);
-        label.setText("Message " + (index + 1));
-        label.setTextColor(Theme.PRIMARY);
-        label.setTextSize(11);
-        label.setTypeface(null, Typeface.BOLD);
-        label.setPadding(0, 0, 0, 6);
-
-        TextView preview = new TextView(this);
-        preview.setText(messages.get(index));
-        preview.setTextColor(Theme.TEXT_PRIMARY);
-        preview.setTextSize(13);
-        preview.setPadding(0, 0, 0, 14);
-
-        LinearLayout btnRow = new LinearLayout(this);
-        btnRow.setOrientation(LinearLayout.HORIZONTAL);
-
-        Button editBtn = new Button(this);
-        editBtn.setText("✎  Edit");
-        editBtn.setAllCaps(false);
-        editBtn.setTextColor(Theme.WARN);
-        editBtn.setBackgroundColor(Theme.EDIT_BG);
-        editBtn.setTextSize(12);
-        LinearLayout.LayoutParams editParams = new LinearLayout.LayoutParams(0, 90, 1f);
-        editParams.setMargins(0, 0, 8, 0);
-        editBtn.setLayoutParams(editParams);
-        editBtn.setOnClickListener(v -> showPoolEditDialog(index, messages.get(index)));
-
-        Button deleteBtn = new Button(this);
-        deleteBtn.setText("✕  Delete");
-        deleteBtn.setAllCaps(false);
-        deleteBtn.setTextColor(Theme.DANGER);
-        deleteBtn.setBackgroundColor(Theme.DELETE_BG);
-        deleteBtn.setTextSize(12);
-        deleteBtn.setLayoutParams(new LinearLayout.LayoutParams(0, 90, 1f));
-        deleteBtn.setOnClickListener(v -> {
-            if (messages.size() <= 1) {
-                showAlert("Can't Delete", "You need at least one auto-reply message.");
-                return;
-            }
-            messages.remove(index);
-            saveMessages();
-            rebuildList();
-        });
-
-        btnRow.addView(editBtn);
-        btnRow.addView(deleteBtn);
-        card.addView(label);
-        card.addView(preview);
-        card.addView(btnRow);
-        return card;
-    }
-
-    // -------------------------------------------------------------------------
-    // Dialogs
-    // -------------------------------------------------------------------------
-    private void showSystemEditDialog(String title, String prefKey,
-                                      String defaultMsg, TextView previewView) {
-        EditText input = new EditText(this);
-        input.setText(loadSystemMsg(prefKey, defaultMsg));
-        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        input.setMinLines(3);
-        input.setBackgroundColor(Theme.INPUT_BG);
-        input.setTextColor(Theme.TEXT_PRIMARY);
-        input.setPadding(20, 20, 20, 20);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Edit: " + title)
-                .setView(input)
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
+                .setTitle(title)
+                .setMessage(explanation)
+                .setView(Ui.dialogBody(this, input))
                 .setPositiveButton("Save", null)
                 .setNegativeButton("Cancel", null)
                 .create();
         dialog.show();
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String val = input.getText().toString().trim();
-            if (val.isEmpty()) { showAlert("Empty", "Message can't be empty."); return; }
+            if (val.isEmpty()) { input.setError("Message can't be empty"); return; }
             saveSystemMsg(prefKey, val);
-            previewView.setText(val);
+            rebuildSpecial();
             dialog.dismiss();
         });
     }
 
     private void showPoolEditDialog(final int index, String current) {
-        EditText input = new EditText(this);
-        input.setText(current);
-        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        input.setMinLines(3);
-        input.setBackgroundColor(Theme.INPUT_BG);
-        input.setTextColor(Theme.TEXT_PRIMARY);
-        input.setPadding(20, 20, 20, 20);
+        EditText input = Ui.input(this, current, "Type your message", true);
 
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(index == -1 ? "Add Message" : "Edit Message")
-                .setView(input)
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this)
+                .setTitle(index == -1 ? "New message" : "Edit message")
+                .setView(Ui.dialogBody(this, input))
                 .setPositiveButton("Save", null)
-                .setNegativeButton("Cancel", null)
-                .create();
+                .setNegativeButton("Cancel", null);
+        if (index != -1) builder.setNeutralButton("Delete", null);
+        AlertDialog dialog = builder.create();
         dialog.show();
+
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String val = input.getText().toString().trim();
-            if (val.isEmpty()) { showAlert("Empty", "Message can't be empty."); return; }
+            if (val.isEmpty()) { input.setError("Message can't be empty"); return; }
             if (index == -1) { messages.add(val); } else { messages.set(index, val); }
             saveMessages();
-            rebuildList();
+            rebuildPool();
             dialog.dismiss();
         });
-    }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-    private View makeSectionLabel(String title, String subtitle) {
-        LinearLayout section = new LinearLayout(this);
-        section.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        params.setMargins(0, 10, 0, 12);
-        section.setLayoutParams(params);
-
-        TextView label = new TextView(this);
-        label.setText(title);
-        label.setTextColor(Theme.TEXT_TERTIARY);
-        label.setTextSize(11);
-        label.setTypeface(null, Typeface.BOLD);
-        label.setPadding(0, 0, 0, 4);
-
-        TextView sub = new TextView(this);
-        sub.setText(subtitle);
-        sub.setTextColor(Theme.TEXT_QUATERNARY);
-        sub.setTextSize(11);
-
-        section.addView(label);
-        section.addView(sub);
-        return section;
-    }
-
-    private void showAlert(String title, String msg) {
-        new AlertDialog.Builder(this)
-                .setTitle(title).setMessage(msg)
-                .setPositiveButton("OK", null).show();
+        if (index != -1) {
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(Theme.DANGER);
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                if (messages.size() <= 1) {
+                    input.setError("You need at least one message");
+                    return;
+                }
+                messages.remove(index);
+                saveMessages();
+                rebuildPool();
+                dialog.dismiss();
+            });
+        }
     }
 }
