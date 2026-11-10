@@ -16,11 +16,15 @@ import android.os.Process;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
+import android.graphics.drawable.GradientDrawable;
+import android.text.format.DateUtils;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
@@ -32,10 +36,22 @@ import com.google.android.material.materialswitch.MaterialSwitch;
 
 import org.json.JSONArray;
 
+import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+
 public class MainActivity extends AppCompatActivity {
 
     // Status card
-    private View statusDot;
+    private FrameLayout statusRing;
+    private ImageView statusIcon;
     private TextView statusTitle;
     private TextView statusBody;
     private TextView statusButton;
@@ -46,6 +62,8 @@ public class MainActivity extends AppCompatActivity {
 
     // Focus mode + settings rows
     private MaterialSwitch focusSwitch;
+    private TextView focusSummary;
+    private TextView exportSummary;
     private TextView repliesSummary;
     private TextView keywordsSummary;
     private TextView contactsSummary;
@@ -76,6 +94,14 @@ public class MainActivity extends AppCompatActivity {
                         }
                         // If still denied, user can re-open the app to try again
                     });
+
+    // System file pickers for backup export / import
+    private final ActivityResultLauncher<String> exportLauncher =
+            registerForActivityResult(new ActivityResultContracts.CreateDocument("application/json"),
+                    uri -> { if (uri != null) exportTo(uri); });
+    private final ActivityResultLauncher<String[]> importLauncher =
+            registerForActivityResult(new ActivityResultContracts.OpenDocument(),
+                    uri -> { if (uri != null) importFrom(uri); });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -171,7 +197,7 @@ public class MainActivity extends AppCompatActivity {
     private void maybePromptUsageAccess() {
         if (hasUsageAccess()) return;
         new MaterialAlertDialogBuilder(this)
-                .setTitle("One more permission")
+                .setTitle("One More Permission")
                 .setMessage("Allow usage access so Ghost Protocol can tell when you have "
                         + "WhatsApp open, and stay quiet while you're chatting.\n\n"
                         + "On the next screen, find Ghost Protocol and turn on "
@@ -221,7 +247,7 @@ public class MainActivity extends AppCompatActivity {
             if (grantResults.length > 0
                     && grantResults[0] != PackageManager.PERMISSION_GRANTED) {
                 new MaterialAlertDialogBuilder(this)
-                        .setTitle("Contacts not allowed")
+                        .setTitle("Contacts Not Allowed")
                         .setMessage("Ghost Protocol uses your contacts to tell friends apart "
                                 + "from unknown numbers. Without it, anyone shown only as a "
                                 + "phone number is treated as unknown.\n\n"
@@ -253,106 +279,141 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout column = Ui.screen(this, "Ghost Protocol",
                 "Replies to your WhatsApp messages while you're away.", false);
 
-        // App icon beside the title
-        LinearLayout header = (LinearLayout) column.getChildAt(0);
+        // App icon before the title
+        LinearLayout bar = (LinearLayout) column.getChildAt(0);
         ImageView icon = new ImageView(this);
         icon.setImageResource(R.mipmap.ic_launcher_round);
         LinearLayout.LayoutParams iconParams =
-                new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44));
-        header.addView(icon, iconParams);
+                new LinearLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 40));
+        iconParams.setMarginEnd(Ui.dp(this, 12));
+        bar.addView(icon, 0, iconParams);
 
-        column.addView(buildStatusCard(), spaced(16));
+        column.addView(buildStatusCard(), spaced(20));
         column.addView(buildUsageNotice(), spaced(12));
 
-        // --- Who gets replies ---
-        column.addView(Ui.sectionLabel(this, "Who gets replies"));
-        LinearLayout focusCard = Ui.card(this);
-        focusCard.addView(buildFocusRow());
-        column.addView(focusCard);
-
-        // --- Settings ---
-        column.addView(Ui.sectionLabel(this, "Settings"));
-        LinearLayout settings = Ui.card(this);
-        LinearLayout repliesRow = Ui.row(this, "Away messages", " ", null, 0,
+        // --- Replies ---
+        column.addView(Ui.sectionLabel(this, "Replies"));
+        LinearLayout replies = Ui.card(this);
+        LinearLayout repliesRow = Ui.row(this, R.drawable.ic_chat, "Away Messages", " ", null, 0,
                 v -> open(EditMessagesActivity.class));
-        repliesSummary = subtitleOf(repliesRow);
-        Ui.addRow(settings, repliesRow);
+        repliesSummary = Ui.subtitleOf(repliesRow);
+        Ui.addRow(replies, repliesRow);
 
-        LinearLayout keywordsRow = Ui.row(this, "Keyword replies", " ", null, 0,
+        LinearLayout keywordsRow = Ui.row(this, R.drawable.ic_tag, "Keyword Replies", " ", null, 0,
                 v -> open(KeywordRulesActivity.class));
-        keywordsSummary = subtitleOf(keywordsRow);
-        Ui.addRow(settings, keywordsRow);
+        keywordsSummary = Ui.subtitleOf(keywordsRow);
+        Ui.addRow(replies, keywordsRow);
+        column.addView(replies);
 
-        LinearLayout contactsRow = Ui.row(this, "Contact list", " ", null, 0,
+        // --- People ---
+        column.addView(Ui.sectionLabel(this, "People"));
+        LinearLayout people = Ui.card(this);
+        Ui.addRow(people, buildFocusRow());
+        LinearLayout contactsRow = Ui.row(this, R.drawable.ic_people, "Contact List", " ", null, 0,
                 v -> open(WhitelistActivity.class));
-        contactsSummary = subtitleOf(contactsRow);
-        Ui.addRow(settings, contactsRow);
-        column.addView(settings);
+        contactsSummary = Ui.subtitleOf(contactsRow);
+        Ui.addRow(people, contactsRow);
+        column.addView(people);
 
         // --- Activity ---
         column.addView(Ui.sectionLabel(this, "Activity"));
         LinearLayout activity = Ui.card(this);
-        LinearLayout historyRow = Ui.row(this, "Recent replies", " ", null, 0,
+        LinearLayout historyRow = Ui.row(this, R.drawable.ic_history, "Recent Replies", " ", null, 0,
                 v -> open(HistoryActivity.class));
-        historySummary = subtitleOf(historyRow);
+        historySummary = Ui.subtitleOf(historyRow);
         Ui.addRow(activity, historyRow);
         column.addView(activity);
+
+        // --- Backup ---
+        column.addView(Ui.sectionLabel(this, "Backup & Restore"));
+        LinearLayout backup = Ui.card(this);
+        LinearLayout exportRow = Ui.row(this, R.drawable.ic_upload, "Export Backup", " ", null, 0,
+                v -> exportLauncher.launch(backupFileName()));
+        exportSummary = Ui.subtitleOf(exportRow);
+        Ui.addRow(backup, exportRow);
+        Ui.addRow(backup, Ui.row(this, R.drawable.ic_download, "Import Backup",
+                "Restore from a backup file", null, 0,
+                // Any file: some phones mislabel .json files, and the
+                // contents are checked before anything is replaced.
+                v -> importLauncher.launch(new String[]{"*/*"})));
+        column.addView(backup);
+        column.addView(Ui.hint(this,
+                "Export a backup before you reinstall the app or switch phones, "
+                        + "then import it to get your messages and settings back."));
     }
 
     private View buildStatusCard() {
         LinearLayout card = Ui.card(this);
         int p = Ui.dp(this, 20);
-        card.setPadding(p, p, p, Ui.dp(this, 14));
+        card.setPadding(p, p, p, Ui.dp(this, 12));
 
-        LinearLayout titleRow = new LinearLayout(this);
-        titleRow.setOrientation(LinearLayout.HORIZONTAL);
-        titleRow.setGravity(Gravity.CENTER_VERTICAL);
-        statusDot = Ui.dot(this, Theme.TEXT_TERTIARY, 10);
-        titleRow.addView(statusDot);
-        statusTitle = Ui.bold(Ui.text(this, "Checking…", 22, Theme.TEXT_PRIMARY));
-        statusTitle.setPadding(Ui.dp(this, 10), 0, 0, 0);
-        titleRow.addView(statusTitle);
-        card.addView(titleRow);
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
 
-        statusBody = Ui.text(this, "", 14, Theme.TEXT_SECONDARY);
-        statusBody.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 18));
+        statusRing = new FrameLayout(this);
+        GradientDrawable ring = new GradientDrawable();
+        ring.setShape(GradientDrawable.OVAL);
+        statusRing.setBackground(ring);
+        statusIcon = Ui.icon(this, R.drawable.ic_eye, Theme.TEXT_TERTIARY, 26);
+        statusRing.addView(statusIcon, new FrameLayout.LayoutParams(
+                Ui.dp(this, 26), Ui.dp(this, 26), Gravity.CENTER));
+        top.addView(statusRing, new LinearLayout.LayoutParams(Ui.dp(this, 56), Ui.dp(this, 56)));
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.addView(Ui.text(this, "Status", 13, Theme.TEXT_TERTIARY));
+        statusTitle = Ui.bold(Ui.text(this, "Checking…", 24, Theme.TEXT_PRIMARY));
+        texts.addView(statusTitle);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(0, Ui.WRAP, 1f);
+        textParams.setMarginStart(Ui.dp(this, 16));
+        top.addView(texts, textParams);
+        card.addView(top);
+
+        statusBody = Ui.text(this, "", 15, Theme.TEXT_SECONDARY);
+        statusBody.setPadding(0, Ui.dp(this, 16), 0, Ui.dp(this, 20));
         card.addView(statusBody);
 
         statusButton = Ui.button(this, "", true, null);
         card.addView(statusButton);
 
-        statusLink = Ui.text(this, "", 13, Theme.TEXT_SECONDARY);
+        statusLink = Ui.bold(Ui.text(this, "", 14, Theme.TEXT_SECONDARY));
         statusLink.setGravity(Gravity.CENTER);
-        statusLink.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 4));
-        card.addView(statusLink, new LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP));
+        statusLink.setMinHeight(Ui.dp(this, 44));
+        statusLink.setBackground(Ui.pressable(this, Theme.SURFACE, 22));
+        LinearLayout.LayoutParams linkParams = new LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP);
+        linkParams.topMargin = Ui.dp(this, 6);
+        card.addView(statusLink, linkParams);
         return card;
     }
 
     private View buildUsageNotice() {
         usageNotice = Ui.card(this);
-        LinearLayout row = Ui.row(this, "Allow usage access",
+        LinearLayout row = Ui.row(this, R.drawable.ic_eye, "Allow Usage Access",
                 "So replies pause while you're using WhatsApp.", null, 0,
                 v -> openUsageAccessSettings());
-        TextView title = (TextView) ((LinearLayout) row.getChildAt(0)).getChildAt(0);
-        title.setTextColor(Theme.WARN);
+        // Swap the mint icon chip for an amber one so it reads as a to-do.
+        View chip = Ui.iconChip(this, R.drawable.ic_eye, Theme.WARN, Theme.alpha(Theme.WARN, 0.14f), 40);
+        ((LinearLayout.LayoutParams) chip.getLayoutParams()).setMarginEnd(Ui.dp(this, 14));
+        row.removeViewAt(0);
+        row.addView(chip, 0);
+        Ui.titleOf(row).setTextColor(Theme.WARN);
         usageNotice.addView(row);
         return usageNotice;
     }
 
     private View buildFocusRow() {
-        LinearLayout row = Ui.row(this, "Focus mode", " ", null, 0, null);
+        LinearLayout row = Ui.row(this, R.drawable.ic_focus, "Focus Mode", " ", null, 0, null);
+        focusSummary = Ui.subtitleOf(row);
         row.setBackground(Ui.pressable(this, Theme.SURFACE, 0));
         focusSwitch = new MaterialSwitch(this);
         focusSwitch.setClickable(false); // the whole row toggles
         focusSwitch.setFocusable(false);
-        row.addView(focusSwitch);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(Ui.WRAP, Ui.WRAP);
+        sp.setMarginStart(Ui.dp(this, 8));
+        row.addView(focusSwitch, sp);
         row.setOnClickListener(v -> toggleFocusMode());
         return row;
-    }
-
-    private static TextView subtitleOf(LinearLayout row) {
-        LinearLayout texts = (LinearLayout) row.getChildAt(0);
-        return (TextView) texts.getChildAt(1);
     }
 
     private LinearLayout.LayoutParams spaced(int topDp) {
@@ -363,6 +424,122 @@ public class MainActivity extends AppCompatActivity {
 
     private void open(Class<?> target) {
         startActivity(new Intent(this, target));
+    }
+
+    // -------------------------------------------------------------------------
+    // BACKUP — export / import all replies and settings as a JSON file
+    // -------------------------------------------------------------------------
+    private static final int MAX_BACKUP_BYTES = 2 * 1024 * 1024;
+
+    private static String backupFileName() {
+        String date = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
+        return "GhostProtocol-Backup-" + date + ".json";
+    }
+
+    private void exportTo(Uri uri) {
+        new Thread(() -> {
+            boolean ok;
+            try {
+                byte[] data = SettingsBackup.export(this).getBytes(StandardCharsets.UTF_8);
+                try (OutputStream out = openForWrite(uri)) {
+                    if (out == null) throw new IOException("No output stream");
+                    out.write(data);
+                }
+                SettingsBackup.markExported(this);
+                ok = true;
+            } catch (Exception e) {
+                Log.e("GhostProtocol", "Backup export failed", e);
+                ok = false;
+            }
+            final boolean saved = ok;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                Toast.makeText(this, saved
+                                ? "Backup saved"
+                                : "Couldn't save the backup. Try a different folder.",
+                        Toast.LENGTH_LONG).show();
+                updateSummaries();
+            });
+        }).start();
+    }
+
+    /** "wt" truncates an existing file; some providers only accept "w". */
+    private OutputStream openForWrite(Uri uri) throws IOException {
+        try {
+            return getContentResolver().openOutputStream(uri, "wt");
+        } catch (IllegalArgumentException | FileNotFoundException e) {
+            return getContentResolver().openOutputStream(uri, "w");
+        }
+    }
+
+    private void importFrom(Uri uri) {
+        new Thread(() -> {
+            SettingsBackup.Backup backup = null;
+            String error = null;
+            try (InputStream in = getContentResolver().openInputStream(uri)) {
+                if (in == null) throw new IOException("No input stream");
+                backup = SettingsBackup.parse(readText(in));
+            } catch (IllegalArgumentException e) {
+                error = e.getMessage();
+            } catch (Exception e) {
+                Log.e("GhostProtocol", "Backup import failed", e);
+                error = "Couldn't open that file.";
+            }
+            final SettingsBackup.Backup parsed = backup;
+            final String message = error;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (parsed != null) {
+                    confirmImport(parsed);
+                } else {
+                    new MaterialAlertDialogBuilder(this)
+                            .setTitle("Can't Import")
+                            .setMessage(message)
+                            .setPositiveButton("OK", null)
+                            .show();
+                }
+            });
+        }).start();
+    }
+
+    private static String readText(InputStream in) throws IOException {
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        byte[] chunk = new byte[8192];
+        int n;
+        while ((n = in.read(chunk)) != -1) {
+            buf.write(chunk, 0, n);
+            if (buf.size() > MAX_BACKUP_BYTES) {
+                throw new IllegalArgumentException("This file is too large to be a Ghost Protocol backup.");
+            }
+        }
+        return buf.toString("UTF-8");
+    }
+
+    private void confirmImport(SettingsBackup.Backup backup) {
+        String saved = backup.exportedAt > 0
+                ? ", saved on " + DateFormat.getDateInstance(DateFormat.MEDIUM)
+                        .format(new Date(backup.exportedAt))
+                : "";
+        String summary = "This backup has " + plural(backup.messageCount(), "away message")
+                + ", " + plural(backup.keywordCount(), "keyword reply", "keyword replies")
+                + " and " + plural(backup.contactCount(), "person", "people")
+                + " on the contact list" + saved + ".\n\n"
+                + "It will replace your current messages and settings. "
+                + "Your recent replies list stays as it is.";
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Import Backup?")
+                .setMessage(summary)
+                .setPositiveButton("Import", (d, w) -> {
+                    if (SettingsBackup.apply(this, backup)) {
+                        refreshAll();
+                        Toast.makeText(this, "Backup imported", Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(this, "Couldn't import the backup. Try again.",
+                                Toast.LENGTH_LONG).show();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     // -------------------------------------------------------------------------
@@ -488,25 +665,25 @@ public class MainActivity extends AppCompatActivity {
         if (manuallyStopped) {
             showStatus(Theme.TEXT_TERTIARY, "Paused",
                     "Nobody will get an auto-reply until you turn it back on.",
-                    "Turn on", true, v -> startProtocol(),
+                    "Turn On", true, v -> startProtocol(),
                     null, null);
 
         } else if (listenerEnabled && keepAliveRunning) {
             showStatus(Theme.ACCENT, "Active",
                     "Replying to WhatsApp messages while you're away.",
                     "Pause", false, v -> stopProtocol(),
-                    "Not replying? Restart", v -> forceRestartService());
+                    "Not Replying? Restart", v -> forceRestartService());
 
         } else if (listenerEnabled) {
-            showStatus(Theme.WARN, "Needs a restart",
+            showStatus(Theme.WARN, "Needs a Restart",
                     "Ghost Protocol stopped running in the background.",
                     "Restart", true, v -> forceRestartService(),
-                    "Pause instead", v -> stopProtocol());
+                    "Pause Instead", v -> stopProtocol());
 
         } else {
-            showStatus(Theme.DANGER, "Finish setup",
+            showStatus(Theme.DANGER, "Finish Setup",
                     "Allow notification access so Ghost Protocol can see new WhatsApp messages.",
-                    "Allow access", true,
+                    "Allow Access", true,
                     v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)),
                     "Pause", v -> stopProtocol());
         }
@@ -515,8 +692,12 @@ public class MainActivity extends AppCompatActivity {
     private void showStatus(int dotColor, String title, String body,
                             String buttonLabel, boolean primary, View.OnClickListener onButton,
                             String link, View.OnClickListener onLink) {
-        Ui.setDotColor(statusDot, dotColor);
+        GradientDrawable ring = (GradientDrawable) statusRing.getBackground();
+        ring.setColor(Theme.alpha(dotColor, 0.12f));
+        ring.setStroke(Ui.dp(this, 2), Theme.alpha(dotColor, 0.55f));
+        statusIcon.setImageTintList(android.content.res.ColorStateList.valueOf(dotColor));
         statusTitle.setText(title);
+        statusTitle.setTextColor(dotColor == Theme.TEXT_TERTIARY ? Theme.TEXT_PRIMARY : dotColor);
         statusBody.setText(body);
 
         statusButton.setText(buttonLabel);
@@ -562,7 +743,6 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception ignored) {}
 
         focusSwitch.setChecked(focus);
-        TextView focusSummary = subtitleOf((LinearLayout) focusSwitch.getParent());
         focusSummary.setText(focus
                 ? "Only people on your contact list get replies"
                 : "Everyone gets replies, except your contact list");
@@ -576,6 +756,13 @@ public class MainActivity extends AppCompatActivity {
         historySummary.setText(histCount == 0
                 ? "Nothing sent yet"
                 : plural(histCount, "reply", "replies") + " sent");
+
+        long lastExport = SettingsBackup.lastExport(this);
+        exportSummary.setText(lastExport == 0
+                ? "Save your messages and settings to a file"
+                : "Last saved " + DateUtils.getRelativeTimeSpanString(
+                        lastExport, System.currentTimeMillis(), DateUtils.DAY_IN_MILLIS)
+                        .toString().toLowerCase(Locale.getDefault()));
     }
 
     private static String plural(int n, String one) {

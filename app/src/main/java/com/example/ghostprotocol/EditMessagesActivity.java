@@ -87,7 +87,7 @@ public class EditMessagesActivity extends AppCompatActivity {
     // UI
     // -------------------------------------------------------------------------
     private void buildUI() {
-        LinearLayout column = Ui.screen(this, "Away messages",
+        LinearLayout column = Ui.screen(this, "Away Messages",
                 "What people get when they message you while you're away.", true);
 
         column.addView(Ui.sectionLabel(this, "Messages"));
@@ -95,7 +95,7 @@ public class EditMessagesActivity extends AppCompatActivity {
         column.addView(poolCard);
         column.addView(Ui.hint(this, "One of these is picked at random each time."));
 
-        column.addView(Ui.sectionLabel(this, "Special situations"));
+        column.addView(Ui.sectionLabel(this, "Special Situations"));
         specialCard = Ui.card(this);
         column.addView(specialCard);
 
@@ -115,19 +115,19 @@ public class EditMessagesActivity extends AppCompatActivity {
             Ui.addRow(poolCard, Ui.row(this, messages.get(i), null, null, 3,
                     v -> showPoolEditDialog(index, messages.get(index))));
         }
-        Ui.addRow(poolCard, Ui.addRowButton(this, "Add message",
+        Ui.addRow(poolCard, Ui.addRowButton(this, "Add Message",
                 v -> showPoolEditDialog(-1, "")));
     }
 
     private void rebuildSpecial() {
         specialCard.removeAllViews();
-        addSpecialRow("Missed call",
+        addSpecialRow("Missed Call",
                 "Sent when someone calls you on WhatsApp. The call still rings as normal.",
                 KEY_CALL_MSG, GhostService.DEFAULT_POOL[GhostService.IDX_CALL_DECLINE]);
-        addSpecialRow("Unknown number",
+        addSpecialRow("Unknown Number",
                 "Sent the first time someone who isn't in your contacts messages you.",
                 KEY_STRANGER_MSG, GhostService.STRANGER_MSG);
-        addSpecialRow("Repeated messages",
+        addSpecialRow("Repeated Messages",
                 "Sent when someone keeps messaging before you've had a chance to reply.",
                 KEY_SPAM_MSG, GhostService.DEFAULT_POOL[GhostService.IDX_SPAM_WARNING]);
     }
@@ -139,10 +139,10 @@ public class EditMessagesActivity extends AppCompatActivity {
 
     private void rebuildTiming() {
         timingCard.removeAllViews();
-        addTimingRow("Wait before replying again",
+        addTimingRow("Wait Before Replying Again",
                 "How long before the same person can get another away message.",
                 GhostService.KEY_WINDOW_MIN, GhostService.DEFAULT_WINDOW_MIN, "minute");
-        addTimingRow("Repeated-message reminder",
+        addTimingRow("Repeated-Message Reminder",
                 "The \"repeated messages\" reply is sent to the same person at most once in this time.",
                 GhostService.KEY_SPAM_COOLDOWN_HR, GhostService.DEFAULT_SPAM_COOLDOWN_HR, "hour");
     }
@@ -166,7 +166,7 @@ public class EditMessagesActivity extends AppCompatActivity {
         AlertDialog dialog = new MaterialAlertDialogBuilder(this)
                 .setTitle(title)
                 .setMessage(explanation)
-                .setView(Ui.dialogBody(this, "Number of " + unit + "s", input))
+                .setView(Ui.dialogBody(this, "Number of " + Character.toUpperCase(unit.charAt(0)) + unit.substring(1) + "s", input))
                 .setPositiveButton("Save", null)
                 .setNegativeButton("Cancel", null)
                 .create();
@@ -213,7 +213,7 @@ public class EditMessagesActivity extends AppCompatActivity {
         EditText input = Ui.input(this, current, "Type your message", true);
 
         MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this)
-                .setTitle(index == -1 ? "New message" : "Edit message")
+                .setTitle(index == -1 ? "New Message" : "Edit Message")
                 .setView(Ui.dialogBody(this, input))
                 .setPositiveButton("Save", null)
                 .setNegativeButton("Cancel", null);

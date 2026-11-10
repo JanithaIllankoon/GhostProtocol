@@ -62,7 +62,7 @@ public class KeywordRulesActivity extends AppCompatActivity {
     // UI
     // -------------------------------------------------------------------------
     private void buildUI() {
-        LinearLayout column = Ui.screen(this, "Keyword replies",
+        LinearLayout column = Ui.screen(this, "Keyword Replies",
                 "When a message contains one of your words, send a specific reply instead.", true);
 
         column.addView(Ui.sectionLabel(this, "Rules"));
@@ -90,7 +90,7 @@ public class KeywordRulesActivity extends AppCompatActivity {
                     null, 2, v -> showRuleDialog(index, keywords.get(index), replies.get(index))));
         }
 
-        Ui.addRow(listCard, Ui.addRowButton(this, "Add keyword reply",
+        Ui.addRow(listCard, Ui.addRowButton(this, "Add Keyword Reply",
                 v -> showRuleDialog(-1, "", "")));
     }
 
@@ -114,10 +114,10 @@ public class KeywordRulesActivity extends AppCompatActivity {
         EditText replyInput = Ui.input(this, currentReply, "e.g.  Happy New Year! 🎉", true);
 
         MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this)
-                .setTitle(index == -1 ? "New keyword reply" : "Edit keyword reply")
+                .setTitle(index == -1 ? "New Keyword Reply" : "Edit Keyword Reply")
                 .setView(Ui.dialogBody(this,
                         "If a message contains (separate words with commas)", kwInput,
-                        "Reply with", replyInput))
+                        "Reply With", replyInput))
                 .setPositiveButton("Save", null)
                 .setNegativeButton("Cancel", null);
         if (index != -1) builder.setNeutralButton("Delete", null);

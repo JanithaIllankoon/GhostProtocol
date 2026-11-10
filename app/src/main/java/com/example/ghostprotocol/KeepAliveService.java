@@ -143,7 +143,7 @@ public class KeepAliveService extends Service {
         }
 
         Notification notification = new NotificationCompat.Builder(this, channelId)
-                .setContentTitle("Ghost Protocol is on")
+                .setContentTitle("Ghost Protocol Is On")
                 .setContentText("Auto-replying to WhatsApp while you're away")
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setOngoing(true)

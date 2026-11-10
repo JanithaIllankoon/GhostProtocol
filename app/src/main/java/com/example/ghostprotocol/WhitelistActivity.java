@@ -74,9 +74,9 @@ public class WhitelistActivity extends AppCompatActivity {
         boolean focus = getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
                 .getBoolean(GhostService.KEY_FOCUS_MODE, false);
 
-        LinearLayout column = Ui.screen(this, "Contact list",
+        LinearLayout column = Ui.screen(this, "Contact List",
                 focus
-                        ? "Focus mode is on, so only these people get auto-replies."
+                        ? "Focus Mode is on, so only these people get auto-replies."
                         : "These people never get auto-replies.",
                 true);
 
@@ -85,7 +85,7 @@ public class WhitelistActivity extends AppCompatActivity {
         column.addView(listCard);
         column.addView(Ui.hint(this,
                 "Type each name exactly as it shows in WhatsApp. "
-                        + "Turn on Focus mode on the home screen to flip this list, "
+                        + "Turn on Focus Mode on the home screen to flip this list, "
                         + "so only these people get replies."));
 
         rebuildList();
@@ -104,7 +104,7 @@ public class WhitelistActivity extends AppCompatActivity {
                     v -> showEditDialog(index, entries.get(index))));
         }
 
-        Ui.addRow(listCard, Ui.addRowButton(this, "Add person",
+        Ui.addRow(listCard, Ui.addRowButton(this, "Add Person",
                 v -> showEditDialog(-1, "")));
     }
 
@@ -112,8 +112,8 @@ public class WhitelistActivity extends AppCompatActivity {
         EditText input = Ui.input(this, current, "e.g.  Alice Example", false);
 
         MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this)
-                .setTitle(index == -1 ? "Add person" : "Edit person")
-                .setView(Ui.dialogBody(this, "Name as shown in WhatsApp", input))
+                .setTitle(index == -1 ? "Add Person" : "Edit Person")
+                .setView(Ui.dialogBody(this, "Name as Shown in WhatsApp", input))
                 .setPositiveButton("Save", null)
                 .setNegativeButton("Cancel", null);
         if (index != -1) builder.setNeutralButton("Remove", null);

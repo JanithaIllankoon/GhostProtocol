@@ -38,12 +38,12 @@ public class HistoryActivity extends AppCompatActivity {
     }
 
     private void buildUI() {
-        LinearLayout column = Ui.screen(this, "Recent replies",
+        LinearLayout column = Ui.screen(this, "Recent Replies",
                 "The last 50 auto-replies, newest first.", true);
 
         clearAction = Ui.headerAction(column, "Clear", v ->
                 new MaterialAlertDialogBuilder(this)
-                        .setTitle("Clear recent replies?")
+                        .setTitle("Clear Recent Replies?")
                         .setMessage("This removes the list below. It can't be undone.")
                         .setPositiveButton("Clear", (d, w) -> {
                             getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
@@ -135,11 +135,11 @@ public class HistoryActivity extends AppCompatActivity {
 
     private String triggerLabel(String trigger) {
         switch (trigger) {
-            case "keyword":  return "Keyword reply";
-            case "random":   return "Away message";
-            case "spam":     return "Repeated messages";
-            case "stranger": return "Unknown number";
-            case "call":     return "Missed call";
+            case "keyword":  return "Keyword Reply";
+            case "random":   return "Away Message";
+            case "spam":     return "Repeated Messages";
+            case "stranger": return "Unknown Number";
+            case "call":     return "Missed Call";
             default:         return trigger.isEmpty() ? "Reply" : trigger;
         }
     }

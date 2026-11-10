@@ -14,6 +14,8 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -28,12 +30,19 @@ import androidx.core.view.WindowInsetsCompat;
 /**
  * Small view factory shared by every screen. The app builds its UI in code,
  * so these helpers keep spacing, shapes and typography consistent.
+ *
+ * Text style: screen titles, section labels, row titles, buttons and dialog
+ * titles use Title Case; descriptions and hints use normal sentence case.
  */
 public final class Ui {
     private Ui() {}
 
     public static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
     public static final int WRAP  = ViewGroup.LayoutParams.WRAP_CONTENT;
+
+    private static final String TAG_TITLE = "row-title";
+    private static final String TAG_SUBTITLE = "row-subtitle";
+    private static final String TAG_ICON_ROW = "icon-row";
 
     public static int dp(Context ctx, float value) {
         return Math.round(TypedValue.applyDimension(
@@ -49,7 +58,7 @@ public final class Ui {
 
     /** Background with a touch ripple clipped to the same rounded shape. */
     public static Drawable pressable(Context ctx, int color, float radiusDp) {
-        return new RippleDrawable(ColorStateList.valueOf(0x22FFFFFF),
+        return new RippleDrawable(ColorStateList.valueOf(0x1FFFFFFF),
                 rounded(ctx, color, radiusDp), rounded(ctx, Color.WHITE, radiusDp));
     }
 
@@ -71,14 +80,36 @@ public final class Ui {
         return tv;
     }
 
+    public static ImageView icon(Context ctx, int iconRes, int color, int sizeDp) {
+        ImageView iv = new ImageView(ctx);
+        iv.setImageResource(iconRes);
+        iv.setImageTintList(ColorStateList.valueOf(color));
+        iv.setLayoutParams(lp(dp(ctx, sizeDp), dp(ctx, sizeDp)));
+        return iv;
+    }
+
+    /** A rounded tinted square holding an icon, used at the start of rows. */
+    public static View iconChip(Context ctx, int iconRes, int iconColor, int bgColor, int sizeDp) {
+        FrameLayout chip = new FrameLayout(ctx);
+        chip.setBackground(rounded(ctx, bgColor, sizeDp * 0.3f));
+        ImageView iv = icon(ctx, iconRes, iconColor, Math.round(sizeDp * 0.55f));
+        chip.addView(iv, new FrameLayout.LayoutParams(
+                dp(ctx, sizeDp * 0.55f), dp(ctx, sizeDp * 0.55f), Gravity.CENTER));
+        chip.setLayoutParams(lp(dp(ctx, sizeDp), dp(ctx, sizeDp)));
+        return chip;
+    }
+
     // -------------------------------------------------------------------------
     // Screen scaffold
     // -------------------------------------------------------------------------
 
     /**
-     * Sets up an edge-to-edge scrolling screen with a header and returns the
-     * column that content should be added to. When {@code showBack} is true a
-     * back arrow is shown that finishes the activity.
+     * Sets up an edge-to-edge scrolling screen and returns the column that
+     * content should be added to. Child 0 of the column is always the top bar.
+     *
+     * Home ({@code showBack} false): the title sits in the top bar.
+     * Sub-screens: a round back button sits in the top bar and a large title
+     * with its description sits underneath.
      */
     public static LinearLayout screen(AppCompatActivity activity, String title,
                                       String subtitle, boolean showBack) {
@@ -89,14 +120,15 @@ public final class Ui {
         ScrollView scroll = new ScrollView(activity);
         scroll.setBackgroundColor(Theme.BG);
         scroll.setFillViewport(true);
+        scroll.setVerticalScrollBarEnabled(false);
 
         LinearLayout column = new LinearLayout(activity);
         column.setOrientation(LinearLayout.VERTICAL);
         scroll.addView(column, new ScrollView.LayoutParams(MATCH, WRAP));
 
         int side = dp(activity, 20);
-        int top = dp(activity, 12);
-        int bottom = dp(activity, 32);
+        int top = dp(activity, 8);
+        int bottom = dp(activity, 40);
         ViewCompat.setOnApplyWindowInsetsListener(scroll, (v, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()
                     | WindowInsetsCompat.Type.displayCutout());
@@ -105,33 +137,38 @@ public final class Ui {
             return WindowInsetsCompat.CONSUMED;
         });
 
-        // Header row: [back] title ........ [action slot]
-        LinearLayout header = new LinearLayout(activity);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setMinimumHeight(dp(activity, 56));
+        LinearLayout bar = new LinearLayout(activity);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setMinimumHeight(dp(activity, 60));
+        column.addView(bar, lp(MATCH, WRAP));
 
         if (showBack) {
-            TextView back = text(activity, "‹", 30, Theme.TEXT_PRIMARY);
-            back.setGravity(Gravity.CENTER);
-            back.setPadding(0, 0, 0, dp(activity, 4));
-            back.setBackground(pressable(activity, Theme.BG, 20));
+            FrameLayout back = new FrameLayout(activity);
+            back.setBackground(pressable(activity, Theme.SURFACE, 22));
+            back.addView(icon(activity, R.drawable.ic_back, Theme.TEXT_PRIMARY, 22),
+                    new FrameLayout.LayoutParams(dp(activity, 22), dp(activity, 22), Gravity.CENTER));
             back.setContentDescription("Back");
             back.setOnClickListener(v -> activity.finish());
-            LinearLayout.LayoutParams bp = lp(dp(activity, 40), dp(activity, 40));
-            bp.setMarginStart(-dp(activity, 10));
-            bp.setMarginEnd(dp(activity, 4));
-            header.addView(back, bp);
+            bar.addView(back, lp(dp(activity, 44), dp(activity, 44)));
+            bar.addView(new View(activity), new LinearLayout.LayoutParams(0, 1, 1f));
+
+            TextView titleView = bold(text(activity, title, 30, Theme.TEXT_PRIMARY));
+            titleView.setLetterSpacing(-0.01f);
+            LinearLayout.LayoutParams tp = lp(MATCH, WRAP);
+            tp.topMargin = dp(activity, 18);
+            column.addView(titleView, tp);
+        } else {
+            TextView titleView = bold(text(activity, title, 26, Theme.TEXT_PRIMARY));
+            titleView.setLetterSpacing(-0.01f);
+            bar.addView(titleView, new LinearLayout.LayoutParams(0, WRAP, 1f));
         }
 
-        TextView titleView = bold(text(activity, title, showBack ? 22 : 26, Theme.TEXT_PRIMARY));
-        header.addView(titleView, new LinearLayout.LayoutParams(0, WRAP, 1f));
-        column.addView(header, lp(MATCH, WRAP));
-
         if (subtitle != null) {
-            TextView sub = text(activity, subtitle, 14, Theme.TEXT_SECONDARY);
+            TextView sub = text(activity, subtitle, 15, Theme.TEXT_SECONDARY);
             LinearLayout.LayoutParams sp = lp(MATCH, WRAP);
-            sp.bottomMargin = dp(activity, 8);
+            sp.topMargin = dp(activity, showBack ? 6 : 0);
+            sp.bottomMargin = dp(activity, 4);
             column.addView(sub, sp);
         }
 
@@ -139,18 +176,16 @@ public final class Ui {
         return column;
     }
 
-    /** Adds a text action to the right side of a screen's header (e.g. "Clear"). */
+    /** Adds a text action to the right side of a screen's top bar (e.g. "Clear All"). */
     public static TextView headerAction(LinearLayout column, String label, View.OnClickListener onClick) {
         Context ctx = column.getContext();
-        LinearLayout header = (LinearLayout) column.getChildAt(0);
+        LinearLayout bar = (LinearLayout) column.getChildAt(0);
         TextView action = bold(text(ctx, label, 14, Theme.ACCENT));
-        int p = dp(ctx, 10);
-        action.setPadding(p, p, p, p);
-        action.setBackground(pressable(ctx, Theme.BG, 12));
+        action.setGravity(Gravity.CENTER);
+        action.setPadding(dp(ctx, 16), 0, dp(ctx, 16), 0);
+        action.setBackground(pressable(ctx, Theme.SURFACE, 22));
         action.setOnClickListener(onClick);
-        LinearLayout.LayoutParams ap = lp(WRAP, WRAP);
-        ap.setMarginEnd(-p);
-        header.addView(action, ap);
+        bar.addView(action, lp(WRAP, dp(ctx, 44)));
         return action;
     }
 
@@ -159,23 +194,24 @@ public final class Ui {
     // -------------------------------------------------------------------------
 
     public static TextView sectionLabel(Context ctx, String label) {
-        TextView tv = bold(text(ctx, label.toUpperCase(), 12, Theme.TEXT_TERTIARY));
-        tv.setLetterSpacing(0.08f);
-        tv.setPadding(dp(ctx, 4), dp(ctx, 24), 0, dp(ctx, 8));
+        TextView tv = bold(text(ctx, label, 15, Theme.TEXT_SECONDARY));
+        tv.setPadding(dp(ctx, 4), dp(ctx, 28), 0, dp(ctx, 10));
         return tv;
     }
 
     public static TextView hint(Context ctx, String value) {
         TextView tv = text(ctx, value, 13, Theme.TEXT_TERTIARY);
-        tv.setPadding(dp(ctx, 4), dp(ctx, 8), dp(ctx, 4), 0);
+        tv.setPadding(dp(ctx, 4), dp(ctx, 10), dp(ctx, 4), 0);
         return tv;
     }
 
-    /** A rounded surface that stacks rows; dividers are inserted by {@link #addRow}. */
+    /** A rounded, outlined surface that stacks rows; dividers are inserted by {@link #addRow}. */
     public static LinearLayout card(Context ctx) {
         LinearLayout card = new LinearLayout(ctx);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackground(rounded(ctx, Theme.SURFACE, 18));
+        GradientDrawable bg = rounded(ctx, Theme.SURFACE, 20);
+        bg.setStroke(dp(ctx, 1), Theme.OUTLINE);
+        card.setBackground(bg);
         card.setClipToOutline(true);
         card.setLayoutParams(lp(MATCH, WRAP));
         return card;
@@ -186,28 +222,44 @@ public final class Ui {
             View divider = new View(card.getContext());
             divider.setBackgroundColor(Theme.DIVIDER);
             LinearLayout.LayoutParams dlp = lp(MATCH, 1);
-            dlp.setMarginStart(dp(card.getContext(), 16));
+            // Line up the divider with the row's text, past any leading icon.
+            dlp.setMarginStart(dp(card.getContext(), TAG_ICON_ROW.equals(row.getTag()) ? 70 : 16));
             card.addView(divider, dlp);
         }
         card.addView(row, lp(MATCH, WRAP));
     }
 
-    /**
-     * A list row: title, optional subtitle, optional trailing value and a
-     * chevron when clickable. {@code titleLines} caps the title (0 = no cap).
-     */
     public static LinearLayout row(Context ctx, CharSequence title, CharSequence subtitle,
+                                   CharSequence value, int titleLines, View.OnClickListener onClick) {
+        return row(ctx, 0, title, subtitle, value, titleLines, onClick);
+    }
+
+    /**
+     * A list row: optional leading icon, title, optional subtitle, optional
+     * trailing value and a chevron when clickable. {@code titleLines} caps the
+     * title (0 = no cap).
+     */
+    public static LinearLayout row(Context ctx, int iconRes, CharSequence title, CharSequence subtitle,
                                    CharSequence value, int titleLines, View.OnClickListener onClick) {
         LinearLayout row = new LinearLayout(ctx);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setMinimumHeight(dp(ctx, 60));
+        row.setMinimumHeight(dp(ctx, 64));
         row.setPadding(dp(ctx, 16), dp(ctx, 14), dp(ctx, 14), dp(ctx, 14));
+
+        if (iconRes != 0) {
+            View chip = iconChip(ctx, iconRes, Theme.ACCENT, Theme.ACCENT_SOFT, 40);
+            ((LinearLayout.LayoutParams) chip.getLayoutParams()).setMarginEnd(dp(ctx, 14));
+            row.addView(chip);
+            row.setTag(TAG_ICON_ROW);
+        }
 
         LinearLayout texts = new LinearLayout(ctx);
         texts.setOrientation(LinearLayout.VERTICAL);
 
         TextView titleView = text(ctx, title, 16, Theme.TEXT_PRIMARY);
+        titleView.setTag(TAG_TITLE);
+        if (iconRes != 0) bold(titleView);
         if (titleLines > 0) {
             titleView.setMaxLines(titleLines);
             titleView.setEllipsize(TextUtils.TruncateAt.END);
@@ -216,9 +268,10 @@ public final class Ui {
 
         if (subtitle != null) {
             TextView sub = text(ctx, subtitle, 13, Theme.TEXT_SECONDARY);
+            sub.setTag(TAG_SUBTITLE);
             sub.setMaxLines(2);
             sub.setEllipsize(TextUtils.TruncateAt.END);
-            sub.setPadding(0, dp(ctx, 3), 0, 0);
+            sub.setPadding(0, dp(ctx, 2), 0, 0);
             texts.addView(sub);
         }
         row.addView(texts, new LinearLayout.LayoutParams(0, WRAP, 1f));
@@ -230,8 +283,8 @@ public final class Ui {
         }
 
         if (onClick != null) {
-            TextView chevron = text(ctx, "›", 22, Theme.TEXT_TERTIARY);
-            chevron.setPadding(dp(ctx, 10), 0, 0, dp(ctx, 2));
+            ImageView chevron = icon(ctx, R.drawable.ic_chevron, Theme.TEXT_TERTIARY, 20);
+            ((LinearLayout.LayoutParams) chevron.getLayoutParams()).setMarginStart(dp(ctx, 8));
             row.addView(chevron);
             row.setBackground(pressable(ctx, Theme.SURFACE, 0));
             row.setOnClickListener(onClick);
@@ -239,24 +292,37 @@ public final class Ui {
         return row;
     }
 
-    /** A centred accent-coloured "+ Add …" row placed at the bottom of a card. */
-    public static TextView addRowButton(Context ctx, String label, View.OnClickListener onClick) {
-        TextView tv = bold(text(ctx, "+  " + label, 15, Theme.ACCENT));
-        tv.setGravity(Gravity.CENTER_VERTICAL);
-        tv.setMinHeight(dp(ctx, 54));
-        tv.setPadding(dp(ctx, 16), 0, dp(ctx, 16), 0);
-        tv.setBackground(pressable(ctx, Theme.SURFACE, 0));
-        tv.setOnClickListener(onClick);
-        return tv;
+    public static TextView titleOf(View row) {
+        return row.findViewWithTag(TAG_TITLE);
+    }
+
+    public static TextView subtitleOf(View row) {
+        return row.findViewWithTag(TAG_SUBTITLE);
+    }
+
+    /** An accent "+ Add …" row placed at the bottom of a list card. */
+    public static View addRowButton(Context ctx, String label, View.OnClickListener onClick) {
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinimumHeight(dp(ctx, 56));
+        row.setPadding(dp(ctx, 16), 0, dp(ctx, 16), 0);
+        ImageView plus = icon(ctx, R.drawable.ic_add, Theme.ACCENT, 20);
+        ((LinearLayout.LayoutParams) plus.getLayoutParams()).setMarginEnd(dp(ctx, 12));
+        row.addView(plus);
+        row.addView(bold(text(ctx, label, 15, Theme.ACCENT)));
+        row.setBackground(pressable(ctx, Theme.SURFACE, 0));
+        row.setOnClickListener(onClick);
+        return row;
     }
 
     /** Full-width pill button. Filled with the accent when {@code primary}. */
     public static TextView button(Context ctx, String label, boolean primary, View.OnClickListener onClick) {
         TextView b = bold(text(ctx, label, 15, primary ? Theme.ON_ACCENT : Theme.TEXT_PRIMARY));
         b.setGravity(Gravity.CENTER);
-        b.setMinHeight(dp(ctx, 50));
+        b.setMinHeight(dp(ctx, 52));
         b.setPadding(dp(ctx, 20), 0, dp(ctx, 20), 0);
-        b.setBackground(pressable(ctx, primary ? Theme.ACCENT : Theme.SURFACE_HIGH, 25));
+        b.setBackground(pressable(ctx, primary ? Theme.ACCENT : Theme.SURFACE_HIGH, 26));
         b.setOnClickListener(onClick);
         b.setLayoutParams(lp(MATCH, WRAP));
         return b;
@@ -265,17 +331,15 @@ public final class Ui {
     public static TextView emptyRow(Context ctx, String message) {
         TextView tv = text(ctx, message, 14, Theme.TEXT_TERTIARY);
         tv.setGravity(Gravity.CENTER);
-        tv.setPadding(dp(ctx, 16), dp(ctx, 28), dp(ctx, 16), dp(ctx, 28));
+        tv.setPadding(dp(ctx, 20), dp(ctx, 32), dp(ctx, 20), dp(ctx, 32));
         return tv;
     }
 
-    /** Small outlined tag, e.g. the reply type in history. */
+    /** Small filled tag, e.g. the reply type in history. */
     public static TextView tag(Context ctx, String label) {
-        TextView tv = text(ctx, label, 11, Theme.TEXT_SECONDARY);
-        GradientDrawable bg = rounded(ctx, Color.TRANSPARENT, 8);
-        bg.setStroke(dp(ctx, 1), Theme.DIVIDER);
-        tv.setBackground(bg);
-        tv.setPadding(dp(ctx, 8), dp(ctx, 2), dp(ctx, 8), dp(ctx, 3));
+        TextView tv = bold(text(ctx, label, 11, Theme.ACCENT));
+        tv.setBackground(rounded(ctx, Theme.ACCENT_SOFT, 8));
+        tv.setPadding(dp(ctx, 8), dp(ctx, 3), dp(ctx, 8), dp(ctx, 4));
         return tv;
     }
 
@@ -305,8 +369,8 @@ public final class Ui {
         input.setTextSize(16);
         input.setTextColor(Theme.TEXT_PRIMARY);
         input.setHintTextColor(Theme.TEXT_TERTIARY);
-        GradientDrawable bg = rounded(ctx, Theme.BG, 12);
-        bg.setStroke(dp(ctx, 1), Theme.DIVIDER);
+        GradientDrawable bg = rounded(ctx, Theme.BG, 14);
+        bg.setStroke(dp(ctx, 1), Theme.OUTLINE);
         input.setBackground(bg);
         int p = dp(ctx, 14);
         input.setPadding(p, p, p, p);
@@ -331,7 +395,7 @@ public final class Ui {
         body.setPadding(dp(ctx, 24), dp(ctx, 8), dp(ctx, 24), 0);
         for (Object item : labelsAndViews) {
             if (item instanceof String) {
-                TextView label = text(ctx, (String) item, 13, Theme.TEXT_SECONDARY);
+                TextView label = bold(text(ctx, (String) item, 13, Theme.TEXT_SECONDARY));
                 label.setPadding(dp(ctx, 2), body.getChildCount() == 0 ? 0 : dp(ctx, 16), 0, dp(ctx, 6));
                 body.addView(label);
             } else {
