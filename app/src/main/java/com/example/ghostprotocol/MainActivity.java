@@ -111,6 +111,7 @@ public class MainActivity extends AppCompatActivity {
         // Old code used a non-persisted boolean, so killing the process
         // would auto-resume the protocol even after the user stopped it.
         manuallyStopped = loadManuallyStopped();
+        ensureListenerEnabled();
 
         // 1. OVERLAY PERMISSION
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -564,17 +565,27 @@ public class MainActivity extends AppCompatActivity {
     // -------------------------------------------------------------------------
     // STOP / START / RESTART
     // -------------------------------------------------------------------------
+    // Pausing only saves the flag; GhostService checks it and ignores every
+    // notification while paused. The listener itself stays enabled — disabling
+    // it made Android drop notification access whenever the app was updated
+    // while paused, forcing the user to grant access again.
     private void stopProtocol() {
         manuallyStopped = true;
         saveManuallyStopped(true);
         stopService(new Intent(this, KeepAliveService.class));
-        ComponentName ghostComponent = new ComponentName(this, GhostService.class);
-        getPackageManager().setComponentEnabledSetting(
-                ghostComponent,
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                PackageManager.DONT_KILL_APP);
         Log.i("GhostProtocol", "Protocol manually stopped.");
         updateStatus();
+    }
+
+    /** Re-enables the listener if an older version disabled it on pause. */
+    private void ensureListenerEnabled() {
+        ComponentName ghost = new ComponentName(this, GhostService.class);
+        PackageManager pm = getPackageManager();
+        if (pm.getComponentEnabledSetting(ghost) == PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
+            pm.setComponentEnabledSetting(ghost,
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP);
+            Log.i("GhostProtocol", "Re-enabled listener left disabled by an older pause.");
+        }
     }
 
     private void startProtocol() {

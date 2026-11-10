@@ -657,6 +657,9 @@ public class GhostService extends NotificationListenerService {
         if (!TARGET_PACKAGE.equals(pkg) && !TARGET_PACKAGE_BIZ.equals(pkg)
                 && !TestReplies.isTestNotification(this, sbn)) return;
 
+        // Paused from the app: leave every notification alone.
+        if (isPaused(this)) return;
+
         // Ensure in-memory caches are loaded
         ensureCachesLoaded();
 
@@ -994,6 +997,13 @@ public class GhostService extends NotificationListenerService {
         int chatCount = new Random(daysSinceEpoch).nextInt(11) + 32; // consistent 32–42 per day
         return spamMsg + sep + "I am currently dealing with 📊 99+ unread messages across "
                 + chatCount + " chats on this app.";
+    }
+
+    /** True while the user has paused Ghost Protocol from the home screen. */
+    static boolean isPaused(Context ctx) {
+        // SharedPreferences keeps values in memory, so this is cheap per notification.
+        return ctx.getSharedPreferences("GhostPrefs", Context.MODE_PRIVATE)
+                .getBoolean("manually_stopped", false);
     }
 
     /**

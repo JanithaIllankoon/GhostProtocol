@@ -126,14 +126,25 @@ public final class Ui {
         column.setOrientation(LinearLayout.VERTICAL);
         scroll.addView(column, new ScrollView.LayoutParams(MATCH, WRAP));
 
+        // Solid strip behind the status bar so scrolled content doesn't run
+        // underneath the clock and icons.
+        FrameLayout root = new FrameLayout(activity);
+        root.setBackgroundColor(Theme.BG);
+        root.addView(scroll, new FrameLayout.LayoutParams(MATCH, MATCH));
+        View statusScrim = new View(activity);
+        statusScrim.setBackgroundColor(Theme.BG);
+        root.addView(statusScrim, new FrameLayout.LayoutParams(MATCH, 0, Gravity.TOP));
+
         int side = dp(activity, 20);
         int top = dp(activity, 8);
         int bottom = dp(activity, 40);
-        ViewCompat.setOnApplyWindowInsetsListener(scroll, (v, insets) -> {
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()
                     | WindowInsetsCompat.Type.displayCutout());
             column.setPadding(side + bars.left, top + bars.top,
                     side + bars.right, bottom + bars.bottom);
+            statusScrim.getLayoutParams().height = bars.top;
+            statusScrim.requestLayout();
             return WindowInsetsCompat.CONSUMED;
         });
 
@@ -172,7 +183,7 @@ public final class Ui {
             column.addView(sub, sp);
         }
 
-        activity.setContentView(scroll);
+        activity.setContentView(root);
         return column;
     }
 
