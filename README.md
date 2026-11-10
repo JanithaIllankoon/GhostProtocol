@@ -8,6 +8,15 @@ GhostProtocol is an experimental Android utility designed to test the boundaries
 
 Modern Android OEMs (specifically Xiaomi/Redmi MIUI) utilize highly aggressive task-killers to terminate background services, making continuous background event listening nearly impossible. This project successfully bypasses these OEM restrictions using a combination of `NotificationListenerService` APIs and a deliberate WindowManager persistence exploit.
 
+## Screenshots
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/home.png" width="250" alt="Home screen"><br><sub>Home</sub></td>
+    <td align="center"><img src="docs/screenshots/away-messages.png" width="250" alt="Away Messages screen"><br><sub>Away Messages</sub></td>
+    <td align="center"><img src="docs/screenshots/settings.png" width="250" alt="Settings screen"><br><sub>Settings</sub></td>
+  </tr>
+</table>
+
 ## Technical Architecture
 
 ### 1. Adversarial Keep-Alive Mechanism (`KeepAliveService.java`)
