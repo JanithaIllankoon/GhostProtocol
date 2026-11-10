@@ -38,10 +38,11 @@ Modern Android OEMs (specifically Xiaomi/Redmi MIUI) utilize highly aggressive t
 
 ## Configuration & Persistence
 * **User-editable behavior (no rebuild required):** the random reply pool, per-situation message lists (spam / call / stranger, one picked at random each time with no back-to-back repeats), keyword→reply rules, the contact whitelist, the reply window, and the spam cooldown are all editable from the in-app UI.
-* **Whitelist / Focus Mode:** the whitelist normally lists contacts the protocol ignores. With **Focus Mode** enabled it inverts into an allow-list — the protocol replies *only* to those contacts and ignores everyone else.
+* **Reply To (whitelist / focus mode):** with *Reply To: Everyone*, the people list is "Never Reply To" — those contacts are ignored. With *Reply To: Only Selected People* it inverts into an allow-list ("Only Reply To") — the protocol replies *only* to those contacts.
+* **Pause:** pausing only saves a flag that the listener checks. The listener component is never disabled — on HyperOS, disabling it (even briefly, as the old pause/restart/watchdog did) revokes notification access. Restart and the watchdog now unbind/rebind instead.
 * **Storage:** all settings persist in `SharedPreferences`, mirrored into an in-memory cache that is rebuilt lazily via an `OnSharedPreferenceChangeListener` so edits take effect immediately without per-notification disk reads.
 * **Auto Backup:** `allowBackup` with scoped backup/data-extraction rules preserves all settings across app updates, reinstalls, and device transfers.
-* **Export / Import Backup:** the home screen's *Backup & Restore* section saves every reply and setting (everything except reply history) to a JSON file through the system file picker, and restores it later after showing what the file contains. This is the reliable path for sideloaded installs, where Auto Backup often doesn't restore.
+* **Export / Import Backup:** *Settings › Backup* saves every reply and setting (everything except reply history) to a JSON file through the system file picker, and restores it later after showing what the file contains. This is the reliable path for sideloaded installs, where Auto Backup often doesn't restore.
 
 ## Tech Stack
 * **Language:** Java · **Min SDK:** 24 · **Target SDK:** 36

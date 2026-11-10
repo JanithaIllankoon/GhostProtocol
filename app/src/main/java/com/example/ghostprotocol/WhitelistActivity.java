@@ -74,19 +74,13 @@ public class WhitelistActivity extends AppCompatActivity {
         boolean focus = getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
                 .getBoolean(GhostService.KEY_FOCUS_MODE, false);
 
-        LinearLayout column = Ui.screen(this, "Contact List",
-                focus
-                        ? "Focus Mode is on, so only these people get auto-replies."
-                        : "These people never get auto-replies.",
-                true);
+        // Title follows the home screen's "Reply To" choice.
+        LinearLayout column = Ui.screen(this, focus ? "Only Reply To" : "Never Reply To", null, true);
 
-        column.addView(Ui.sectionLabel(this, "People"));
         listCard = Ui.card(this);
-        column.addView(listCard);
-        column.addView(Ui.hint(this,
-                "Type each name exactly as it shows in WhatsApp. "
-                        + "Turn on Focus Mode on the home screen to flip this list, "
-                        + "so only these people get replies."));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP);
+        lp.topMargin = Ui.dp(this, 20);
+        column.addView(listCard, lp);
 
         rebuildList();
     }
@@ -95,7 +89,7 @@ public class WhitelistActivity extends AppCompatActivity {
         listCard.removeAllViews();
 
         if (entries.isEmpty()) {
-            Ui.addRow(listCard, Ui.emptyRow(this, "Nobody on the list yet."));
+            Ui.addRow(listCard, Ui.emptyRow(this, "No one yet."));
         }
 
         for (int i = 0; i < entries.size(); i++) {

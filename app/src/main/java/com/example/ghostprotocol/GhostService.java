@@ -59,6 +59,25 @@ public class GhostService extends NotificationListenerService {
      * True if the system still accepts calls from this listener. A severed
      * binding either leaves no instance, returns null, or throws.
      */
+    /**
+     * Disconnects and reconnects the listener. This never disables the
+     * component: on some ROMs (HyperOS) disabling it, even briefly, makes
+     * Android revoke notification access.
+     */
+    static void reconnect(Context ctx) {
+        Context app = ctx.getApplicationContext();
+        ComponentName me = new ComponentName(app, GhostService.class);
+        GhostService s = instance;
+        if (s != null) {
+            try { s.requestUnbind(); } catch (Exception ignored) {}
+        }
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            try { requestRebind(me); } catch (Exception e) {
+                Log.e("GhostProtocol", "Rebind failed: " + e.getMessage());
+            }
+        }, 600);
+    }
+
     static boolean isBindingAlive() {
         GhostService s = instance;
         if (s == null) return false;

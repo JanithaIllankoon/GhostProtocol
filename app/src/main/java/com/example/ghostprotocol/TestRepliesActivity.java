@@ -68,8 +68,7 @@ public class TestRepliesActivity extends AppCompatActivity {
     // -------------------------------------------------------------------------
     private void buildUI() {
         LinearLayout column = Ui.screen(this, "Test Replies",
-                "Send yourself fake WhatsApp messages and calls to see what Ghost Protocol "
-                        + "replies. Nothing is sent to anyone.", true);
+                "Fake messages and calls, just for you. Nothing is sent to anyone.", true);
 
         clearAction = Ui.headerAction(column, "Clear", v -> {
             TestReplies.clearLog(this);
@@ -119,20 +118,15 @@ public class TestRepliesActivity extends AppCompatActivity {
         column.addView(composer);
 
         column.addView(Ui.hint(this,
-                "Use a name saved in your contacts to get a normal away message or keyword "
-                        + "reply. Use any other name, or a phone number, to get the Unknown "
-                        + "Number reply. Reset This Person makes the next test count as their "
-                        + "first message again."));
+                "Saved contact names get away messages. Other names and numbers get the "
+                        + "Unknown Number reply."));
 
         // --- Results ---
         column.addView(Ui.sectionLabel(this, "Results"));
         resultsCard = Ui.card(this);
         column.addView(resultsCard);
         column.addView(Ui.hint(this,
-                "\"No reply sent\" is normal when the same person already got a reply within "
-                        + "the wait time, sent the exact same text in the last 5 minutes, sent "
-                        + "two tests less than 3 seconds apart, or is on your contact list "
-                        + "(or isn't, with Focus Mode on)."));
+                "No reply usually means a wait time or your Reply To setting stopped it."));
     }
 
     private TextView fieldLabel(String label, boolean first) {

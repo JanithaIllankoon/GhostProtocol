@@ -62,15 +62,13 @@ public class KeywordRulesActivity extends AppCompatActivity {
     // UI
     // -------------------------------------------------------------------------
     private void buildUI() {
-        LinearLayout column = Ui.screen(this, "Keyword Replies",
-                "When a message contains one of your words, send a specific reply instead.", true);
+        LinearLayout column = Ui.screen(this, "Keyword Replies", null, true);
 
-        column.addView(Ui.sectionLabel(this, "Rules"));
         listCard = Ui.card(this);
-        column.addView(listCard);
-        column.addView(Ui.hint(this,
-                "Only used for people in your phone's contacts. Unknown numbers always get "
-                        + "the unknown-number reply."));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP);
+        lp.topMargin = Ui.dp(this, 20);
+        column.addView(listCard, lp);
+        column.addView(Ui.hint(this, "Unknown numbers always get the Unknown Number reply."));
 
         rebuildList();
     }
@@ -80,8 +78,8 @@ public class KeywordRulesActivity extends AppCompatActivity {
 
         if (keywords.isEmpty()) {
             Ui.addRow(listCard, Ui.emptyRow(this,
-                    "No keyword replies yet.\nFor example: reply \"Happy New Year!\" "
-                            + "to anyone who says \"new year\"."));
+                    "Reply differently when a message has certain words.\n"
+                            + "For example, \"Happy New Year!\" to anyone who says \"new year\"."));
         }
 
         for (int i = 0; i < keywords.size(); i++) {

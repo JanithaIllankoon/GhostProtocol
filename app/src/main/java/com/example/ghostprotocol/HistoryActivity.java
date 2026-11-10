@@ -38,8 +38,7 @@ public class HistoryActivity extends AppCompatActivity {
     }
 
     private void buildUI() {
-        LinearLayout column = Ui.screen(this, "Recent Replies",
-                "The last 50 auto-replies, newest first.", true);
+        LinearLayout column = Ui.screen(this, "Recent Replies", null, true);
 
         clearAction = Ui.headerAction(column, "Clear", v ->
                 new MaterialAlertDialogBuilder(this)
@@ -56,7 +55,7 @@ public class HistoryActivity extends AppCompatActivity {
                         .show());
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.MATCH, Ui.WRAP);
-        lp.topMargin = Ui.dp(this, 16);
+        lp.topMargin = Ui.dp(this, 20);
         listCard = Ui.card(this);
         column.addView(listCard, lp);
     }
@@ -88,7 +87,7 @@ public class HistoryActivity extends AppCompatActivity {
         listCard.removeAllViews();
         clearAction.setVisibility(View.GONE);
         Ui.addRow(listCard, Ui.emptyRow(this,
-                "Nothing yet.\nReplies will show up here once they're sent."));
+                "No replies yet."));
     }
 
     private View buildRow(JSONObject entry) {

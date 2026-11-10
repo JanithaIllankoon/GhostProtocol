@@ -52,7 +52,8 @@ public class KeepAliveService extends Service {
     // long since the last notification — a quiet phone overnight used to look
     // "dead" and got its listener restarted every half hour for no reason.
     //   • probe OK       → requestRebind() as a harmless nudge (no-op when bound)
-    //   • probe fails    → hard-toggle the component to recover a wedged binding
+    //   • probe fails    → unbind + rebind (never disable the component — on
+    //                      HyperOS that revokes notification access)
     // Nothing is forced while notification access is turned off in Settings.
     // -------------------------------------------------------------------------
     private static final long WATCHDOG_INTERVAL_MS = 10 * 60 * 1000L; // check every 10 min
@@ -66,20 +67,10 @@ public class KeepAliveService extends Service {
                         KeepAliveService.this, GhostService.class);
 
                 if (hasNotificationAccess() && !GhostService.isBindingAlive()) {
-                    // Binding looks wedged — force the OS to tear it down and
-                    // rebind by toggling the component off then on.
-                    Log.w("GhostProtocol", "Watchdog: listener binding is dead — forcing rebind.");
-                    getPackageManager().setComponentEnabledSetting(ghost,
-                            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                            PackageManager.DONT_KILL_APP);
-                    watchdog.postDelayed(() -> {
-                        getPackageManager().setComponentEnabledSetting(ghost,
-                                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                                PackageManager.DONT_KILL_APP);
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                            NotificationListenerService.requestRebind(ghost);
-                        }
-                    }, 800);
+                    // Binding looks wedged — unbind and rebind it. The component
+                    // is never toggled off: on HyperOS that revokes access.
+                    Log.w("GhostProtocol", "Watchdog: listener binding is dead — reconnecting.");
+                    GhostService.reconnect(KeepAliveService.this);
                 } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     // Routine nudge — recovers a silently-unbound listener.
                     NotificationListenerService.requestRebind(ghost);

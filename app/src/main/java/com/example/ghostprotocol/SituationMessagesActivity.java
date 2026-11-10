@@ -44,8 +44,7 @@ public class SituationMessagesActivity extends AppCompatActivity {
         column.addView(Ui.sectionLabel(this, "Messages"));
         listCard = Ui.card(this);
         column.addView(listCard);
-        column.addView(Ui.hint(this, "One of these is picked at random each time. "
-                + "Add a few so replies don't all look the same."));
+        column.addView(Ui.hint(this, "One is picked at random each time."));
         rebuildList();
     }
 
@@ -57,7 +56,7 @@ public class SituationMessagesActivity extends AppCompatActivity {
         listCard.removeAllViews();
         for (int i = 0; i < messages.size(); i++) {
             final int index = i;
-            Ui.addRow(listCard, Ui.row(this, messages.get(i), null, null, 3,
+            Ui.addRow(listCard, Ui.row(this, messages.get(i), null, null, 2,
                     v -> showEditDialog(index, messages.get(index))));
         }
         Ui.addRow(listCard, Ui.addRowButton(this, "Add Message", v -> showEditDialog(-1, "")));

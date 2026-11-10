@@ -43,6 +43,7 @@ public final class Ui {
     private static final String TAG_TITLE = "row-title";
     private static final String TAG_SUBTITLE = "row-subtitle";
     private static final String TAG_ICON_ROW = "icon-row";
+    private static final String TAG_VALUE = "row-value";
 
     public static int dp(Context ctx, float value) {
         return Math.round(TypedValue.applyDimension(
@@ -288,7 +289,9 @@ public final class Ui {
         row.addView(texts, new LinearLayout.LayoutParams(0, WRAP, 1f));
 
         if (value != null) {
-            TextView v = text(ctx, value, 14, Theme.TEXT_SECONDARY);
+            TextView v = text(ctx, value, 15, Theme.TEXT_SECONDARY);
+            v.setTag(TAG_VALUE);
+            v.setSingleLine(true);
             v.setPadding(dp(ctx, 12), 0, 0, 0);
             row.addView(v);
         }
@@ -309,6 +312,24 @@ public final class Ui {
 
     public static TextView subtitleOf(View row) {
         return row.findViewWithTag(TAG_SUBTITLE);
+    }
+
+    /** The trailing value of a row built with a non-null {@code value}. */
+    public static TextView valueOf(View row) {
+        return row.findViewWithTag(TAG_VALUE);
+    }
+
+    /** A round icon-only button, e.g. the settings gear in the home top bar. */
+    public static View iconButton(Context ctx, int iconRes, String description,
+                                  View.OnClickListener onClick) {
+        FrameLayout b = new FrameLayout(ctx);
+        b.setBackground(pressable(ctx, Theme.SURFACE, 22));
+        b.addView(icon(ctx, iconRes, Theme.TEXT_PRIMARY, 22),
+                new FrameLayout.LayoutParams(dp(ctx, 22), dp(ctx, 22), Gravity.CENTER));
+        b.setContentDescription(description);
+        b.setOnClickListener(onClick);
+        b.setLayoutParams(lp(dp(ctx, 44), dp(ctx, 44)));
+        return b;
     }
 
     /** An accent "+ Add …" row placed at the bottom of a list card. */

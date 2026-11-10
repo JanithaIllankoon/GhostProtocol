@@ -173,7 +173,7 @@ final class TestReplies {
     static String problem(Context ctx) {
         if (ctx.getSharedPreferences("GhostPrefs", Context.MODE_PRIVATE)
                 .getBoolean("manually_stopped", false)) {
-            return "Ghost Protocol is paused. Turn it on from the home screen first.";
+            return "Auto-Reply is off. Turn it on from the home screen first.";
         }
         if (!listenerEnabled(ctx)) {
             return "Notification access is off. Finish setup on the home screen first.";

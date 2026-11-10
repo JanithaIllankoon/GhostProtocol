@@ -3,7 +3,6 @@ package com.example.ghostprotocol;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.text.InputType;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import androidx.appcompat.app.AlertDialog;
@@ -18,7 +17,6 @@ public class EditMessagesActivity extends AppCompatActivity {
 
     private LinearLayout poolCard;
     private LinearLayout specialCard;
-    private LinearLayout timingCard;
     private final List<String> messages = new ArrayList<>();
 
     @Override
@@ -68,42 +66,28 @@ public class EditMessagesActivity extends AppCompatActivity {
     }
 
     // -------------------------------------------------------------------------
-    // Load — timing
-    // -------------------------------------------------------------------------
-    private int loadTiming(String key, int defaultVal) {
-        return getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
-                .getInt(key, defaultVal);
-    }
-
-    // -------------------------------------------------------------------------
     // UI
     // -------------------------------------------------------------------------
     private void buildUI() {
-        LinearLayout column = Ui.screen(this, "Away Messages",
-                "What people get when they message you while you're away.", true);
+        LinearLayout column = Ui.screen(this, "Away Messages", null, true);
 
         column.addView(Ui.sectionLabel(this, "Messages"));
         poolCard = Ui.card(this);
         column.addView(poolCard);
-        column.addView(Ui.hint(this, "One of these is picked at random each time."));
+        column.addView(Ui.hint(this, "One is picked at random each time."));
 
         column.addView(Ui.sectionLabel(this, "Special Situations"));
         specialCard = Ui.card(this);
         column.addView(specialCard);
 
-        column.addView(Ui.sectionLabel(this, "Timing"));
-        timingCard = Ui.card(this);
-        column.addView(timingCard);
-
-        rebuildPool();
-        rebuildTiming(); // special situations are filled in onResume
+        rebuildPool(); // special situations are filled in onResume
     }
 
     private void rebuildPool() {
         poolCard.removeAllViews();
         for (int i = 0; i < messages.size(); i++) {
             final int index = i;
-            Ui.addRow(poolCard, Ui.row(this, messages.get(i), null, null, 3,
+            Ui.addRow(poolCard, Ui.row(this, messages.get(i), null, null, 2,
                     v -> showPoolEditDialog(index, messages.get(index))));
         }
         Ui.addRow(poolCard, Ui.addRowButton(this, "Add Message",
@@ -114,67 +98,15 @@ public class EditMessagesActivity extends AppCompatActivity {
         specialCard.removeAllViews();
         SharedPreferences prefs = getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE);
         for (SituationMessages.Situation s : SituationMessages.ALL) {
-            List<String> list = SituationMessages.load(prefs, s);
-            // One message: show it. Several: show how many there are.
-            String summary = list.size() == 1
-                    ? list.get(0)
-                    : list.size() + " messages, one picked at random";
-            Ui.addRow(specialCard, Ui.row(this, s.title, summary, null, 0,
+            int count = SituationMessages.load(prefs, s).size();
+            Ui.addRow(specialCard, Ui.row(this, s.title, null, String.valueOf(count), 0,
                     v -> startActivity(SituationMessagesActivity.intent(this, s))));
         }
-    }
-
-    private void rebuildTiming() {
-        timingCard.removeAllViews();
-        addTimingRow("Wait Before Replying Again",
-                "How long before the same person can get another away message.",
-                GhostService.KEY_WINDOW_MIN, GhostService.DEFAULT_WINDOW_MIN, "minute");
-        addTimingRow("Repeated-Message Reminder",
-                "The \"repeated messages\" reply is sent to the same person at most once in this time.",
-                GhostService.KEY_SPAM_COOLDOWN_HR, GhostService.DEFAULT_SPAM_COOLDOWN_HR, "hour");
-    }
-
-    private void addTimingRow(String title, String explanation, String prefKey,
-                              int defaultVal, String unit) {
-        int value = loadTiming(prefKey, defaultVal);
-        Ui.addRow(timingCard, Ui.row(this, title, null, value + " " + unit + (value == 1 ? "" : "s"), 0,
-                v -> showTimingDialog(title, explanation, prefKey, defaultVal, unit)));
     }
 
     // -------------------------------------------------------------------------
     // Dialogs
     // -------------------------------------------------------------------------
-    private void showTimingDialog(String title, String explanation, String prefKey,
-                                  int defaultVal, String unit) {
-        EditText input = Ui.input(this, String.valueOf(loadTiming(prefKey, defaultVal)),
-                null, false);
-        input.setInputType(InputType.TYPE_CLASS_NUMBER);
-
-        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
-                .setTitle(title)
-                .setMessage(explanation)
-                .setView(Ui.dialogBody(this, "Number of " + Character.toUpperCase(unit.charAt(0)) + unit.substring(1) + "s", input))
-                .setPositiveButton("Save", null)
-                .setNegativeButton("Cancel", null)
-                .create();
-        dialog.show();
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            String raw = input.getText().toString().trim();
-            int val;
-            try {
-                val = Integer.parseInt(raw);
-            } catch (NumberFormatException e) {
-                input.setError("Enter a whole number");
-                return;
-            }
-            if (val < 1) { input.setError("Must be at least 1"); return; }
-            getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
-                    .edit().putInt(prefKey, val).apply();
-            rebuildTiming();
-            dialog.dismiss();
-        });
-    }
-
     private void showPoolEditDialog(final int index, String current) {
         EditText input = Ui.input(this, current, "Type your message", true);
 

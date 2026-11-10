@@ -25,6 +25,7 @@
         <activity android:name=".EditMessagesActivity" />
         <activity android:name=".SituationMessagesActivity" />
         <activity android:name=".TestRepliesActivity" />
+        <activity android:name=".SettingsActivity" />
 
         <receiver
             android:name=".TestReplyReceiver"

@@ -40,17 +40,17 @@ final class SituationMessages {
     static final Situation CALL = new Situation("sys_call", "sys_call_msg",
             GhostService.DEFAULT_POOL[GhostService.IDX_CALL_DECLINE],
             "Missed Call",
-            "Sent when someone calls you on WhatsApp. The call still rings as normal.");
+            "Sent when you get a WhatsApp call. The call still rings.");
 
     static final Situation STRANGER = new Situation("sys_stranger", "sys_stranger_msg",
             GhostService.STRANGER_MSG,
             "Unknown Number",
-            "Sent the first time someone who isn't in your contacts messages you.");
+            "Sent the first time an unsaved number messages you.");
 
     static final Situation SPAM = new Situation("sys_spam", "sys_spam_msg",
             GhostService.DEFAULT_POOL[GhostService.IDX_SPAM_WARNING],
             "Repeated Messages",
-            "Sent when someone keeps messaging before you've had a chance to reply.");
+            "Sent when someone keeps messaging before you reply.");
 
     static final Situation[] ALL = {CALL, STRANGER, SPAM};
 
