@@ -24,6 +24,11 @@
 
         <activity android:name=".EditMessagesActivity" />
         <activity android:name=".SituationMessagesActivity" />
+        <activity android:name=".TestRepliesActivity" />
+
+        <receiver
+            android:name=".TestReplyReceiver"
+            android:exported="false" />
         <activity android:name=".KeywordRulesActivity" />
         <activity android:name=".WhitelistActivity" />
         <activity android:name=".HistoryActivity" />

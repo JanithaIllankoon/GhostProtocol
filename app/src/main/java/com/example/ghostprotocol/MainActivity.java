@@ -322,6 +322,9 @@ public class MainActivity extends AppCompatActivity {
                 v -> open(HistoryActivity.class));
         historySummary = Ui.subtitleOf(historyRow);
         Ui.addRow(activity, historyRow);
+        Ui.addRow(activity, Ui.row(this, R.drawable.ic_send, "Test Replies",
+                "Try your replies without another phone", null, 0,
+                v -> open(TestRepliesActivity.class)));
         column.addView(activity);
 
         // --- Backup ---

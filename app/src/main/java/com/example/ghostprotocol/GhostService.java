@@ -654,7 +654,8 @@ public class GhostService extends NotificationListenerService {
 
         if (sbn == null) return;
         String pkg = sbn.getPackageName();
-        if (!TARGET_PACKAGE.equals(pkg) && !TARGET_PACKAGE_BIZ.equals(pkg)) return;
+        if (!TARGET_PACKAGE.equals(pkg) && !TARGET_PACKAGE_BIZ.equals(pkg)
+                && !TestReplies.isTestNotification(this, sbn)) return;
 
         // Ensure in-memory caches are loaded
         ensureCachesLoaded();
