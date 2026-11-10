@@ -21,15 +21,17 @@ public class EditMessagesActivity extends AppCompatActivity {
     private LinearLayout timingCard;
     private final List<String> messages = new ArrayList<>();
 
-    static final String KEY_SPAM_MSG = "sys_spam_msg";
-    static final String KEY_CALL_MSG = "sys_call_msg";
-    static final String KEY_STRANGER_MSG = "sys_stranger_msg";
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         loadMessages();
         buildUI();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        rebuildSpecial(); // counts may have changed on a situation's screen
     }
 
     // -------------------------------------------------------------------------
@@ -66,18 +68,8 @@ public class EditMessagesActivity extends AppCompatActivity {
     }
 
     // -------------------------------------------------------------------------
-    // Load / Save — system messages and timing
+    // Load — timing
     // -------------------------------------------------------------------------
-    private String loadSystemMsg(String key, String defaultMsg) {
-        return getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
-                .getString(key, defaultMsg);
-    }
-
-    private void saveSystemMsg(String key, String value) {
-        getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
-                .edit().putString(key, value).apply();
-    }
-
     private int loadTiming(String key, int defaultVal) {
         return getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
                 .getInt(key, defaultVal);
@@ -104,8 +96,7 @@ public class EditMessagesActivity extends AppCompatActivity {
         column.addView(timingCard);
 
         rebuildPool();
-        rebuildSpecial();
-        rebuildTiming();
+        rebuildTiming(); // special situations are filled in onResume
     }
 
     private void rebuildPool() {
@@ -121,20 +112,16 @@ public class EditMessagesActivity extends AppCompatActivity {
 
     private void rebuildSpecial() {
         specialCard.removeAllViews();
-        addSpecialRow("Missed Call",
-                "Sent when someone calls you on WhatsApp. The call still rings as normal.",
-                KEY_CALL_MSG, GhostService.DEFAULT_POOL[GhostService.IDX_CALL_DECLINE]);
-        addSpecialRow("Unknown Number",
-                "Sent the first time someone who isn't in your contacts messages you.",
-                KEY_STRANGER_MSG, GhostService.STRANGER_MSG);
-        addSpecialRow("Repeated Messages",
-                "Sent when someone keeps messaging before you've had a chance to reply.",
-                KEY_SPAM_MSG, GhostService.DEFAULT_POOL[GhostService.IDX_SPAM_WARNING]);
-    }
-
-    private void addSpecialRow(String title, String explanation, String prefKey, String defaultMsg) {
-        Ui.addRow(specialCard, Ui.row(this, title, loadSystemMsg(prefKey, defaultMsg), null, 0,
-                v -> showSystemEditDialog(title, explanation, prefKey, defaultMsg)));
+        SharedPreferences prefs = getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE);
+        for (SituationMessages.Situation s : SituationMessages.ALL) {
+            List<String> list = SituationMessages.load(prefs, s);
+            // One message: show it. Several: show how many there are.
+            String summary = list.size() == 1
+                    ? list.get(0)
+                    : list.size() + " messages, one picked at random";
+            Ui.addRow(specialCard, Ui.row(this, s.title, summary, null, 0,
+                    v -> startActivity(SituationMessagesActivity.intent(this, s))));
+        }
     }
 
     private void rebuildTiming() {
@@ -184,27 +171,6 @@ public class EditMessagesActivity extends AppCompatActivity {
             getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE)
                     .edit().putInt(prefKey, val).apply();
             rebuildTiming();
-            dialog.dismiss();
-        });
-    }
-
-    private void showSystemEditDialog(String title, String explanation,
-                                      String prefKey, String defaultMsg) {
-        EditText input = Ui.input(this, loadSystemMsg(prefKey, defaultMsg), null, true);
-
-        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
-                .setTitle(title)
-                .setMessage(explanation)
-                .setView(Ui.dialogBody(this, input))
-                .setPositiveButton("Save", null)
-                .setNegativeButton("Cancel", null)
-                .create();
-        dialog.show();
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            String val = input.getText().toString().trim();
-            if (val.isEmpty()) { input.setError("Message can't be empty"); return; }
-            saveSystemMsg(prefKey, val);
-            rebuildSpecial();
             dialog.dismiss();
         });
     }

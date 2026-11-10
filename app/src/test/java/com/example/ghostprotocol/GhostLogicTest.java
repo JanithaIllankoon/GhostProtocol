@@ -454,6 +454,49 @@ public class GhostLogicTest {
         assertEquals(Set.of("Eve"), GhostService.findExpiredSenders(prefs, NOW, 30 * DAY));
     }
 
+    // =========================================================================
+    // 9. SPECIAL-SITUATION RANDOM PICK — GhostService.pickRandom
+    // =========================================================================
+
+    @Test
+    public void pickRandom_noOptions_usesFallback() {
+        assertEquals("fb", GhostService.pickRandom(new String[0], null, "fb", new Random(1)));
+        assertEquals("fb", GhostService.pickRandom(null, null, "fb", new Random(1)));
+    }
+
+    @Test
+    public void pickRandom_singleOption_alwaysThatOne() {
+        String[] one = {"only"};
+        for (int i = 0; i < 20; i++) {
+            assertEquals("only", GhostService.pickRandom(one, "only", "fb", new Random(i)));
+        }
+    }
+
+    @Test
+    public void pickRandom_neverRepeatsLastWhenThereAreOthers() {
+        String[] four = {"a", "b", "c", "d"};
+        Random rng = new Random(42);
+        String last = null;
+        for (int i = 0; i < 500; i++) {
+            String next = GhostService.pickRandom(four, last, "fb", rng);
+            assertNotEquals("same message twice in a row", last, next);
+            last = next;
+        }
+    }
+
+    @Test
+    public void pickRandom_usesEveryOption() {
+        String[] four = {"a", "b", "c", "d"};
+        Random rng = new Random(7);
+        Set<String> seen = new HashSet<>();
+        String last = null;
+        for (int i = 0; i < 200; i++) {
+            last = GhostService.pickRandom(four, last, "fb", rng);
+            seen.add(last);
+        }
+        assertEquals(4, seen.size());
+    }
+
     @Test
     public void expiry_nonSenderKeys_areIgnored() {
         Map<String, Object> prefs = new HashMap<>();

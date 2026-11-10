@@ -116,8 +116,8 @@ public class GhostService extends NotificationListenerService {
     static final String HISTORY_KEY = "history_json";
 
     // Generic first-contact reply sent to senders not in the phone's contacts.
-    // This is only the DEFAULT — users can override it in the app (Edit
-    // Auto-Reply Messages → Stranger Reply). Runtime value is cachedStrangerMsg.
+    // This is only the DEFAULT — users can replace it with their own list in
+    // the app (Away Messages → Unknown Number). Runtime list is cachedStrangerMsgs.
     static final String STRANGER_MSG =
             "Thanks for your message. This number is not in my contacts, so my reply may be delayed.";
 
@@ -156,10 +156,16 @@ public class GhostService extends NotificationListenerService {
     // =========================================================================
     private volatile List<String> cachedWhitelist;
     private volatile String[]     cachedPool;
-    private volatile String       cachedSpamMsg;
-    private volatile String       cachedCallMsg;
-    private volatile String       cachedStrangerMsg;
+    private volatile String[]     cachedSpamMsgs;
+    private volatile String[]     cachedCallMsgs;
+    private volatile String[]     cachedStrangerMsgs;
     private volatile Set<String>  cachedSentStrings;
+
+    // Last message sent for each special situation, so the same one isn't
+    // picked twice in a row when there are several to choose from.
+    private volatile String lastSpamMsg;
+    private volatile String lastCallMsg;
+    private volatile String lastStrangerMsg;
     private volatile Pattern      cachedKeywordPattern;
     private volatile Map<String, String> cachedKeywordToReply;  // lowercase kw → reply
     private volatile boolean cachedFocusMode;
@@ -218,12 +224,12 @@ public class GhostService extends NotificationListenerService {
         }
 
         // --- System messages ---
-        cachedSpamMsg = prefs.getString(EditMessagesActivity.KEY_SPAM_MSG,
-                DEFAULT_POOL[IDX_SPAM_WARNING]);
-        cachedCallMsg = prefs.getString(EditMessagesActivity.KEY_CALL_MSG,
-                DEFAULT_POOL[IDX_CALL_DECLINE]);
-        cachedStrangerMsg = prefs.getString(EditMessagesActivity.KEY_STRANGER_MSG,
-                STRANGER_MSG);
+        cachedSpamMsgs = SituationMessages.load(prefs, SituationMessages.SPAM)
+                .toArray(new String[0]);
+        cachedCallMsgs = SituationMessages.load(prefs, SituationMessages.CALL)
+                .toArray(new String[0]);
+        cachedStrangerMsgs = SituationMessages.load(prefs, SituationMessages.STRANGER)
+                .toArray(new String[0]);
 
         // --- Whitelist ---
         int wlCount = prefs.getInt("whitelist_count", -1);
@@ -279,9 +285,9 @@ public class GhostService extends NotificationListenerService {
 
         // --- Sent strings set (for Mirror Shield) ---
         Set<String> sent = new HashSet<>();
-        if (cachedSpamMsg != null) sent.add(cachedSpamMsg);
-        if (cachedCallMsg != null) sent.add(cachedCallMsg);
-        if (cachedStrangerMsg != null) sent.add(cachedStrangerMsg);
+        sent.addAll(Arrays.asList(cachedSpamMsgs));
+        sent.addAll(Arrays.asList(cachedCallMsgs));
+        sent.addAll(Arrays.asList(cachedStrangerMsgs));
         sent.add(STRANGER_MSG);
         for (String s : cachedPool) { if (s != null) sent.add(s); }
         for (String v : kwMap.values()) { if (v != null) sent.add(v); }
@@ -757,8 +763,9 @@ public class GhostService extends NotificationListenerService {
     private void handleCall(Notification notification, String callerName) {
         Notification.Action replyAction = getReplyAction(notification);
         if (replyAction != null) {
-            String callMsg = cachedCallMsg != null
-                    ? cachedCallMsg : DEFAULT_POOL[IDX_CALL_DECLINE];
+            String callMsg = pickRandom(cachedCallMsgs, lastCallMsg,
+                    DEFAULT_POOL[IDX_CALL_DECLINE], RNG);
+            lastCallMsg = callMsg;
             sendReply(replyAction, callMsg);
             logReplyHistory(callerName, callMsg, "call");
             Log.i("GhostProtocol", "Busy message sent to caller.");
@@ -864,7 +871,9 @@ public class GhostService extends NotificationListenerService {
                 if (!strangerGreeted) {
                     // FIRST ENCOUNTER EVER with this unknown sender
                     if (now - windowStart > cachedWindowMs) {
-                        payload = cachedStrangerMsg != null ? cachedStrangerMsg : STRANGER_MSG;
+                        payload = pickRandom(cachedStrangerMsgs, lastStrangerMsg,
+                                STRANGER_MSG, RNG);
+                        lastStrangerMsg = payload;
                         trigger = "stranger";
                         prefs.edit()
                                 .putLong("window_" + senderName, now)
@@ -976,13 +985,30 @@ public class GhostService extends NotificationListenerService {
     // so it stays consistent within a 24-hour period (avoids the erratic
     // "32 chats" / "41 chats" inconsistency that reveals it's a bot).
     private String buildSpamPayload() {
-        String spamMsg = cachedSpamMsg != null
-                ? cachedSpamMsg : DEFAULT_POOL[IDX_SPAM_WARNING];
+        String spamMsg = pickRandom(cachedSpamMsgs, lastSpamMsg,
+                DEFAULT_POOL[IDX_SPAM_WARNING], RNG);
+        lastSpamMsg = spamMsg;
         String sep = (spamMsg.endsWith(" ") || spamMsg.endsWith("\n")) ? "" : " ";
         long daysSinceEpoch = System.currentTimeMillis() / (24 * 60 * 60 * 1000L);
         int chatCount = new Random(daysSinceEpoch).nextInt(11) + 32; // consistent 32–42 per day
         return spamMsg + sep + "I am currently dealing with 📊 99+ unread messages across "
                 + chatCount + " chats on this app.";
+    }
+
+    /**
+     * Picks one message at random. With more than one option it never returns
+     * {@code avoid} (the one sent last time), so back-to-back repeats don't
+     * happen. Falls back to {@code fallback} when there are no options.
+     */
+    static String pickRandom(String[] options, String avoid, String fallback, Random rng) {
+        if (options == null || options.length == 0) return fallback;
+        if (options.length == 1) return options[0];
+        List<String> choices = new ArrayList<>(options.length);
+        for (String o : options) {
+            if (!o.equals(avoid)) choices.add(o);
+        }
+        if (choices.isEmpty()) return options[rng.nextInt(options.length)]; // all identical
+        return choices.get(rng.nextInt(choices.size()));
     }
 
     // =========================================================================

@@ -23,6 +23,7 @@
         tools:targetApi="31">
 
         <activity android:name=".EditMessagesActivity" />
+        <activity android:name=".SituationMessagesActivity" />
         <activity android:name=".KeywordRulesActivity" />
         <activity android:name=".WhitelistActivity" />
         <activity android:name=".HistoryActivity" />

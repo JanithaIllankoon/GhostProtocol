@@ -37,7 +37,7 @@ Modern Android OEMs (specifically Xiaomi/Redmi MIUI) utilize highly aggressive t
 * Distinguishes saved contacts from strangers by matching the notification title against the device contact list (`READ_CONTACTS`) — exact name match plus last-9-digit phone-number matching to normalize formats like `+94771234567` vs `0771234567`. Falls back to a number-only heuristic when permission is denied.
 
 ## Configuration & Persistence
-* **User-editable behavior (no rebuild required):** the random reply pool, per-situation system messages (spam / call / stranger), keyword→reply rules, the contact whitelist, the reply window, and the spam cooldown are all editable from the in-app UI.
+* **User-editable behavior (no rebuild required):** the random reply pool, per-situation message lists (spam / call / stranger, one picked at random each time with no back-to-back repeats), keyword→reply rules, the contact whitelist, the reply window, and the spam cooldown are all editable from the in-app UI.
 * **Whitelist / Focus Mode:** the whitelist normally lists contacts the protocol ignores. With **Focus Mode** enabled it inverts into an allow-list — the protocol replies *only* to those contacts and ignores everyone else.
 * **Storage:** all settings persist in `SharedPreferences`, mirrored into an in-memory cache that is rebuilt lazily via an `OnSharedPreferenceChangeListener` so edits take effect immediately without per-notification disk reads.
 * **Auto Backup:** `allowBackup` with scoped backup/data-extraction rules preserves all settings across app updates, reinstalls, and device transfers.
