@@ -2,8 +2,6 @@ package com.example.ghostprotocol;
 
 import android.content.SharedPreferences;
 
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * The special-situation replies (missed call, unknown number, repeated
@@ -35,6 +33,7 @@ final class SituationMessages {
 
         String countKey() { return prefix + "_count"; }
         String itemKey(int i) { return prefix + "_" + i; }
+        String offKey(int i) { return prefix + "_off_" + i; }
     }
 
     static final Situation CALL = new Situation("sys_call", "sys_call_msg",
@@ -61,31 +60,42 @@ final class SituationMessages {
         return null;
     }
 
-    /** Never empty: falls back to the legacy single message, then the default. */
-    static List<String> load(SharedPreferences prefs, Situation s) {
-        List<String> out = new ArrayList<>();
+    /**
+     * All messages with their on/off state. Never empty: falls back to the
+     * legacy single message, then the default.
+     */
+    static MessageList load(SharedPreferences prefs, Situation s) {
+        MessageList list = new MessageList();
         int count = prefs.getInt(s.countKey(), -1);
         if (count < 0) {
-            out.add(prefs.getString(s.legacyKey, s.defaultMessage));
+            list.add(prefs.getString(s.legacyKey, s.defaultMessage), true);
         } else {
             for (int i = 0; i < count; i++) {
                 String msg = prefs.getString(s.itemKey(i), "").trim();
-                if (!msg.isEmpty()) out.add(msg);
+                if (!msg.isEmpty()) list.add(msg, !prefs.getBoolean(s.offKey(i), false));
             }
         }
-        if (out.isEmpty()) out.add(s.defaultMessage);
-        return out;
+        if (list.size() == 0) list.add(s.defaultMessage, true);
+        return list;
     }
 
-    static void save(SharedPreferences prefs, Situation s, List<String> messages) {
+    /** The messages that can be sent right now (switched on). */
+    static String[] enabled(SharedPreferences prefs, Situation s) {
+        return load(prefs, s).enabledTexts();
+    }
+
+    static void save(SharedPreferences prefs, Situation s, MessageList list) {
         int oldCount = Math.max(prefs.getInt(s.countKey(), 0), 0);
         SharedPreferences.Editor editor = prefs.edit();
-        editor.putInt(s.countKey(), messages.size());
-        for (int i = 0; i < messages.size(); i++) {
-            editor.putString(s.itemKey(i), messages.get(i));
+        editor.putInt(s.countKey(), list.size());
+        for (int i = 0; i < list.size(); i++) {
+            editor.putString(s.itemKey(i), list.texts.get(i));
+            if (list.on.get(i)) editor.remove(s.offKey(i));
+            else editor.putBoolean(s.offKey(i), true);
         }
-        for (int i = messages.size(); i < oldCount; i++) {
+        for (int i = list.size(); i < oldCount; i++) {
             editor.remove(s.itemKey(i));
+            editor.remove(s.offKey(i));
         }
         editor.remove(s.legacyKey); // now stored as a list
         editor.apply();

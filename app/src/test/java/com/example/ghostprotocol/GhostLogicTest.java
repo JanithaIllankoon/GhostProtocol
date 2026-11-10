@@ -497,6 +497,51 @@ public class GhostLogicTest {
         assertEquals(4, seen.size());
     }
 
+    // =========================================================================
+    // 10. MESSAGE ON/OFF — MessageList
+    // =========================================================================
+
+    @Test
+    public void messageList_offMessagesAreNotSent() {
+        MessageList list = new MessageList();
+        list.add("a", true);
+        list.add("b", false);
+        list.add("c", true);
+        assertArrayEquals(new String[]{"a", "c"}, list.enabledTexts());
+        assertEquals("2 of 3", list.countLabel());
+    }
+
+    @Test
+    public void messageList_allOn_countIsPlain() {
+        MessageList list = new MessageList();
+        list.add("a", true);
+        list.add("b", true);
+        assertEquals("2", list.countLabel());
+    }
+
+    @Test
+    public void messageList_noneOn_fallsBackToAll() {
+        // Shouldn't happen (the UI keeps one on), but never send nothing.
+        MessageList list = new MessageList();
+        list.add("a", false);
+        list.add("b", false);
+        assertArrayEquals(new String[]{"a", "b"}, list.enabledTexts());
+    }
+
+    @Test
+    public void messageList_offMessageNeverPicked() {
+        MessageList list = new MessageList();
+        list.add("on1", true);
+        list.add("off", false);
+        list.add("on2", true);
+        Random rng = new Random(3);
+        String last = null;
+        for (int i = 0; i < 300; i++) {
+            last = GhostService.pickRandom(list.enabledTexts(), last, "fb", rng);
+            assertNotEquals("off", last);
+        }
+    }
+
     @Test
     public void expiry_nonSenderKeys_areIgnored() {
         Map<String, Object> prefs = new HashMap<>();

@@ -419,8 +419,7 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences prefs = getSharedPreferences(GhostService.MSG_PREFS, Context.MODE_PRIVATE);
         boolean only = onlySelected();
 
-        int poolCount = prefs.getInt("pool_count", 0);
-        if (poolCount == 0) poolCount = GhostService.IDX_SPAM_WARNING; // default pool size
+        String poolLabel = PoolMessages.load(prefs).countLabel(); // "5" or "4 of 5"
         int kwCount = prefs.getInt("kw_count", 0);
         int wlCount = prefs.getInt("whitelist_count", -1);
         if (wlCount == -1) wlCount = GhostService.DEFAULT_WHITELIST.length;
@@ -429,7 +428,7 @@ public class MainActivity extends AppCompatActivity {
             histCount = new JSONArray(prefs.getString(GhostService.HISTORY_KEY, "[]")).length();
         } catch (Exception ignored) {}
 
-        Ui.valueOf(messagesRow).setText(String.valueOf(poolCount));
+        Ui.valueOf(messagesRow).setText(poolLabel);
         Ui.valueOf(keywordsRow).setText(countOrNone(kwCount));
         Ui.valueOf(replyToRow).setText(only ? "Selected" : "Everyone");
         Ui.titleOf(listRow).setText(only ? "Only Reply To" : "Never Reply To");

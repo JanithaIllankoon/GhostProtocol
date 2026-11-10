@@ -229,26 +229,11 @@ public class GhostService extends NotificationListenerService {
     private synchronized void reloadCaches() {
         SharedPreferences prefs = getSharedPreferences(MSG_PREFS, MODE_PRIVATE);
 
-        // --- Pool ---
-        int count = prefs.getInt("pool_count", 0);
-        if (count == 0) {
-            cachedPool = Arrays.copyOf(DEFAULT_POOL, IDX_SPAM_WARNING);
-        } else {
-            String[] pool = new String[count];
-            for (int i = 0; i < count; i++) {
-                pool[i] = prefs.getString("pool_msg_" + i,
-                        DEFAULT_POOL[Math.min(i, IDX_SPAM_WARNING - 1)]);
-            }
-            cachedPool = pool;
-        }
-
-        // --- System messages ---
-        cachedSpamMsgs = SituationMessages.load(prefs, SituationMessages.SPAM)
-                .toArray(new String[0]);
-        cachedCallMsgs = SituationMessages.load(prefs, SituationMessages.CALL)
-                .toArray(new String[0]);
-        cachedStrangerMsgs = SituationMessages.load(prefs, SituationMessages.STRANGER)
-                .toArray(new String[0]);
+        // --- Pool + special situations: only messages that are switched on ---
+        cachedPool = PoolMessages.load(prefs).enabledTexts();
+        cachedSpamMsgs = SituationMessages.enabled(prefs, SituationMessages.SPAM);
+        cachedCallMsgs = SituationMessages.enabled(prefs, SituationMessages.CALL);
+        cachedStrangerMsgs = SituationMessages.enabled(prefs, SituationMessages.STRANGER);
 
         // --- Whitelist ---
         int wlCount = prefs.getInt("whitelist_count", -1);
